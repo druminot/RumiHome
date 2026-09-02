@@ -1,0 +1,7 @@
+[Unit]
+Description=Rumihome weekly VPS snapshot via Hostinger API
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/snapshot-weekly.sh
