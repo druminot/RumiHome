@@ -1,11 +1,10 @@
 # Litestream: replicación continua del DB de Rumihome a GCS
 # Docs: https://litestream.io/guides/gcs/
-access-key-id:     _gcp_iam
-secret-access-key: _gcp_iam
-
 dbs:
   - path: /data/rumihome.db
     replicas:
-      - url: gs://rumihome-backups-rumihome-448217/litestream
+      - type: gcs
+        bucket: rumihome-backups-rumihome-448217
+        path: litestream
         retention: 720h          # 30 días de historia point-in-time
         sync-interval: 10s
