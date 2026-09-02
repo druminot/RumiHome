@@ -12,7 +12,7 @@ import {
   getStats,
   getMonthCalendar,
   hasOverlap,
-} from '../db/reservations'
+} from '../db/reservations.js'
 
 export const adminRouter = Router()
 
