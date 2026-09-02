@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
-import { firebaseEnabled } from '../firebase'
+import { firebaseEnabled, getAuthInstance, getIdToken, signOut } from '../firebase'
 import type { Reservation, ReservationStatus } from '../types'
 
 const ADMIN_PATH = import.meta.env.VITE_ADMIN_PATH ?? '/admin'
@@ -49,9 +49,8 @@ export default function AdminDashboardPage() {
   const [formError, setFormError] = useState<string | null>(null)
 
   const logout = useCallback(async () => {
-    if (firebaseEnabled) {
-      const { getAuth, signOut } = await import('firebase/auth')
-      await signOut(getAuth())
+    if (getAuthInstance()) {
+      await signOut(getAuthInstance()!)
     }
     sessionStorage.removeItem('admin_token')
     navigate(ADMIN_PATH)
@@ -72,11 +71,9 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (firebaseEnabled) {
-      import('../firebase').then(({ getIdToken }) =>
-        getIdToken().then((t) => {
-          if (!t) navigate(ADMIN_PATH)
-        }),
-      )
+      getIdToken().then((t) => {
+        if (!t) navigate(ADMIN_PATH)
+      })
     }
     load()
   }, [load, navigate])

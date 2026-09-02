@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { firebaseEnabled, getIdToken } from '../firebase'
+import { firebaseEnabled, getAuthInstance, signInWithEmailAndPassword, getIdToken } from '../firebase'
 
 const ADMIN_PATH = import.meta.env.VITE_ADMIN_PATH ?? '/admin'
 
@@ -16,15 +16,14 @@ export default function AdminLoginPage() {
     setError(null)
     setLoading(true)
     try {
-      if (firebaseEnabled) {
-        const { getAuth, signInWithEmailAndPassword } = await import('firebase/auth')
-        await signInWithEmailAndPassword(getAuth(), email, password)
-        const token = await getIdToken()
-        sessionStorage.setItem('admin_token', token ?? '')
-        navigate(`${ADMIN_PATH}/panel`)
-      } else {
+      if (!firebaseEnabled || !getAuthInstance()) {
         setError('Firebase no está configurado. Define las variables VITE_FIREBASE_* en .env')
+        return
       }
+      await signInWithEmailAndPassword(getAuthInstance()!, email, password)
+      const token = await getIdToken()
+      sessionStorage.setItem('admin_token', token ?? '')
+      navigate(`${ADMIN_PATH}/panel`)
     } catch (err) {
       setError('Credenciales inválidas o error de conexión.')
     } finally {

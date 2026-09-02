@@ -1,3 +1,6 @@
+import { initializeApp } from 'firebase/app'
+import { getAuth, signInWithEmailAndPassword, signOut, type Auth } from 'firebase/auth'
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -8,24 +11,20 @@ const firebaseConfig = {
 export const firebaseEnabled =
   Boolean(firebaseConfig.apiKey) && Boolean(firebaseConfig.projectId)
 
-let initialized = false
+let authInstance: Auth | null = null
 
-/** Inicializa Firebase la primera vez que se necesita (lazy, sin top-level await). */
-export async function ensureFirebase(): Promise<void> {
-  if (!firebaseEnabled || initialized) return
-  const { initializeApp } = await import('firebase/app')
-  const { getAuth } = await import('firebase/auth')
-  initializeApp(firebaseConfig)
-  getAuth()
-  initialized = true
+if (firebaseEnabled) {
+  const app = initializeApp(firebaseConfig)
+  authInstance = getAuth(app)
 }
 
-/** Devuelve el token JWT de Firebase del usuario autenticado, o null. */
+export function getAuthInstance(): Auth | null {
+  return authInstance
+}
+
 export async function getIdToken(): Promise<string | null> {
-  if (!firebaseEnabled) return null
-  await ensureFirebase()
-  const { getAuth } = await import('firebase/auth')
-  const auth = getAuth()
-  if (!auth.currentUser) return null
-  return auth.currentUser.getIdToken()
+  if (!authInstance?.currentUser) return null
+  return authInstance.currentUser.getIdToken()
 }
+
+export { signInWithEmailAndPassword, signOut }
