@@ -73,7 +73,6 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_reservations_rut ON reservations(guest_rut);
   CREATE INDEX IF NOT EXISTS idx_reservations_pnr ON reservations(pnr);
-  CREATE INDEX IF NOT EXISTS idx_reservations_property_dates ON reservations(property_id, check_in, check_out);
 `)
 
 /** Migración desde esquema previo (sin property_id / precios). */
@@ -131,6 +130,9 @@ function ensureDefaultProperty(): void {
 
 ensureDefaultProperty()
 migrateLegacySchema()
+
+// Índice que referencia property_id: solo tras la migración del esquema legacy
+db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_property_dates ON reservations(property_id, check_in, check_out)')
 
 /** Genera un PNR legible tipo RUMI-XXXXXX (sin caracteres ambiguos). */
 export function generatePnr(): string {
