@@ -226,6 +226,151 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
 .modal .actions-row { display: flex; gap: 0.8rem; margin-top: 1.4rem; }
 .modal .actions-row .btn { flex: 1; }
 
+/* ---------- Stats ---------- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.stat-card {
+  background: var(--white);
+  border: 1px solid var(--soft);
+  border-radius: 14px;
+  padding: 1.1rem 1.3rem;
+  box-shadow: 0 4px 24px rgba(54,54,54,0.04);
+}
+.stat-card b {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-soft);
+  margin-bottom: 0.3rem;
+}
+.stat-card span {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--dark);
+  letter-spacing: -0.02em;
+}
+.stat-card .stat-small { font-size: 0.95rem; font-weight: 600; }
+
+/* ---------- Calendario ---------- */
+.calendar-section {
+  background: var(--white);
+  border: 1px solid var(--soft);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 2.5rem;
+  box-shadow: 0 4px 24px rgba(54,54,54,0.04);
+}
+.calendar-head {
+  display: flex; flex-wrap: wrap; gap: 1rem;
+  align-items: center; justify-content: space-between;
+  margin-bottom: 1.2rem;
+}
+.calendar-head h3 { font-size: 1.2rem; }
+.calendar-head select {
+  padding: 0.5rem 0.8rem;
+  border: 1.5px solid var(--gray);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+.calendar-nav { display: flex; align-items: center; gap: 0.6rem; }
+.month-label { font-weight: 600; text-transform: capitalize; min-width: 130px; text-align: center; }
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.cal-dow {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-soft);
+  padding: 0.3rem 0;
+  text-transform: uppercase;
+}
+.cal-day {
+  min-height: 52px;
+  border-radius: 8px;
+  padding: 0.35rem 0.45rem;
+  background: #fcfbf8;
+  border: 1px solid #f0ede6;
+  display: flex; flex-direction: column;
+  font-size: 0.8rem;
+}
+.cal-day.blank { background: transparent; border: none; }
+.cal-day.libre { background: #f7f5f0; }
+.cal-day.parcial { background: var(--wood); }
+.cal-day.ocupado { background: var(--sage); color: var(--dark); }
+.cal-num { font-weight: 600; }
+.cal-pnr {
+  font-size: 0.62rem;
+  font-weight: 700;
+  margin-top: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.calendar-legend { display: flex; gap: 1.2rem; margin-top: 1rem; font-size: 0.8rem; color: var(--text-soft); }
+.legend::before {
+  content: '';
+  display: inline-block;
+  width: 12px; height: 12px;
+  border-radius: 3px;
+  margin-right: 0.35rem;
+  vertical-align: -1px;
+}
+.legend.libre::before { background: #f7f5f0; border: 1px solid var(--soft); }
+.legend.parcial::before { background: var(--wood); }
+.legend.ocupado::before { background: var(--sage); }
+
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+.pnr-success { text-align: center; padding: 1rem 0; }
+.pnr-success p { color: var(--text-soft); }
+.pnr-box {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.6rem;
+  font-weight: 700;
+  background: var(--soft);
+  border-radius: 12px;
+  padding: 0.8rem;
+  margin: 1rem 0;
+  letter-spacing: 2px;
+}
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); border: 0;
+}
+
+/* ---------- Guest: check-in form ---------- */
+.checkin-section {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--soft);
+  padding-top: 1.5rem;
+}
+.checkin-section h3 { font-size: 1.1rem; margin-bottom: 0.8rem; }
+.price-summary {
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--soft);
+  border-radius: 12px;
+  padding: 0.9rem 1.2rem;
+  margin: 1.2rem 0;
+  font-size: 1.05rem;
+}
+.price-summary .total { font-weight: 700; font-size: 1.25rem; color: var(--dark); }
+
+@media (max-width: 640px) {
+  .field-row { grid-template-columns: 1fr; }
+  .cal-day { min-height: 42px; }
+  .stat-card span { font-size: 1.2rem; }
+}
+
 /* ---------- Guest portal ---------- */
 .guest-shell {
   min-height: 100vh;

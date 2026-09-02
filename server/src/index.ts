@@ -1,7 +1,6 @@
 import express from 'express'
 import cors from 'cors'
-import { adminRouter } from './routes/admin.js'
-import { guestRouter } from './routes/guest.js'
+import { adminRouter, guestRouter } from './routes/admin.js'
 import { requireAdmin } from './middleware/auth.js'
 import { firebaseConfigured } from './firebase-admin.js'
 

@@ -26,6 +26,16 @@ export const api = {
   async listReservations(): Promise<Reservation[]> {
     return request('/reservations', { headers: await authHeaders() })
   },
+  async listProperties(): Promise<Property[]> {
+    return request('/properties', { headers: await authHeaders() })
+  },
+  async getStats(propertyId?: number): Promise<Stats> {
+    const q = propertyId ? `?property_id=${propertyId}` : ''
+    return request(`/stats${q}`, { headers: await authHeaders() })
+  },
+  async getCalendar(propertyId: number, year: number, month: number): Promise<{ days: CalendarDay[] }> {
+    return request(`/calendar/${propertyId}/${year}/${month}`, { headers: await authHeaders() })
+  },
   async createReservation(data: NewReservation): Promise<Reservation> {
     return request('/reservations', {
       method: 'POST',
@@ -47,18 +57,30 @@ export const api = {
     })
   },
   /** Portal del pasajero: busca por nombre + RUT + PNR. */
-  async guestLookup(pnr: string, name: string, rut: string): Promise<Reservation> {
+  async guestLookup(pnr: string, name: string, rut: string): Promise<GuestReservationView> {
     return request('/guest/lookup', {
       method: 'POST',
       body: JSON.stringify({ pnr, name, rut }),
     })
   },
-  async guestReservation(pnr: string, name: string, rut: string): Promise<Reservation> {
+  async guestReservation(pnr: string, name: string, rut: string): Promise<GuestReservationView> {
     return request('/guest/reservation', {
       method: 'POST',
       body: JSON.stringify({ pnr, name, rut }),
     })
   },
+  /** Check-in online: el pasajero completa email/teléfono/hora de llegada. */
+  async guestCheckIn(
+    pnr: string,
+    name: string,
+    rut: string,
+    data: { guest_email?: string; guest_phone?: string; arrival_time?: string },
+  ): Promise<GuestReservationView> {
+    return request('/guest/reservation', {
+      method: 'PATCH',
+      body: JSON.stringify({ pnr, name, rut, ...data }),
+    })
+  },
 }
 
-import type { Reservation, NewReservation } from '../types'
+import type { Reservation, NewReservation, Property, Stats, CalendarDay, GuestReservationView } from '../types'
