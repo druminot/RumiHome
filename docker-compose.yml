@@ -1,15 +1,33 @@
+x-gcs-creds: &gcs-creds
+  GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/backup-sa.json
+
 services:
   api:
     build: ./server
     container_name: rumihome-api
     restart: unless-stopped
     environment:
-      # En producción define FIREBASE_PROJECT_ID (verifica JWT de Firebase)
-      # FIREBASE_PROJECT_ID: tu-proyecto
-      # Para desarrollo sin Firebase:
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-cambia-esta-clave}
+      FIREBASE_PROJECT_ID: rumihome-448217
+      DB_PATH: /data/rumihome.db
     volumes:
       - rumihome_data:/data
+    networks:
+      - rumihome
+
+  # Respaldo continuo: replica el SQLite a GCS cada 10s
+  litestream:
+    image: litestream/litestream:0.3.13
+    container_name: rumihome-litestream
+    restart: unless-stopped
+    command: replicate -config /etc/litestream.yml
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcs-creds.json
+    volumes:
+      - ./litestream.yml:/etc/litestream.yml:ro
+      - /root/backup-sa.json:/run/secrets/gcs-creds.json:ro
+      - rumihome_data:/data
+    depends_on:
+      - api
     networks:
       - rumihome
 
@@ -19,7 +37,10 @@ services:
       args:
         VITE_ADMIN_PATH: /admin
         VITE_GUEST_PATH: /reserva
-        # VITE_FIREBASE_*: configurar al crear el proyecto Firebase
+        VITE_FIREBASE_API_KEY: AIzaSyCpuL_aoKkogaWtkhPKsnWRw68FP5J5ecg
+        VITE_FIREBASE_AUTH_DOMAIN: rumihome-448217.firebaseapp.com
+        VITE_FIREBASE_PROJECT_ID: rumihome-448217
+        VITE_FIREBASE_APP_ID: 1:315822949726:web:7e0d2556d560e170917bcf
     container_name: rumihome-app
     restart: unless-stopped
     depends_on:
