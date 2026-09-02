@@ -1,0 +1,36 @@
+services:
+  api:
+    build: ./server
+    container_name: rumihome-api
+    restart: unless-stopped
+    environment:
+      # En producción define FIREBASE_PROJECT_ID (verifica JWT de Firebase)
+      # FIREBASE_PROJECT_ID: tu-proyecto
+      # Para desarrollo sin Firebase:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-cambia-esta-clave}
+    volumes:
+      - rumihome_data:/data
+    networks:
+      - rumihome
+
+  app:
+    build:
+      context: ./app
+      args:
+        VITE_ADMIN_PATH: /admin
+        VITE_GUEST_PATH: /reserva
+        # VITE_FIREBASE_*: configurar al crear el proyecto Firebase
+    container_name: rumihome-app
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - rumihome
+
+networks:
+  rumihome:
+    name: rumihome
+
+volumes:
+  rumihome_data:
+    name: rumihome_data
