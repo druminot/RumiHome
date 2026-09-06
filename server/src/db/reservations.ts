@@ -154,9 +154,9 @@ export function generatePnr(): string {
   return `RUMI-${code}`
 }
 
-/** Clave numérica de puerta: 4-6 dígitos aleatorios. */
+/** Clave numérica de puerta: 8 dígitos aleatorios. */
 export function generateDoorCode(): string {
-  return String(1000 + (randomBytes(4).readUInt32BE(0) % 900000)).padStart(4, '0').slice(0, 6)
+  return String(randomBytes(4).readUInt32BE(0) % 100000000).padStart(8, '0')
 }
 
 export function listProperties(): PropertyRow[] {

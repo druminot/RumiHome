@@ -416,10 +416,10 @@ export default function ReservasTab() {
                   </div>
                 </div>
                 <div className="field">
-                  <label htmlFor="f-doorcode">Clave de puerta (4-6 dígitos)</label>
-                  <input id="f-doorcode" inputMode="numeric" pattern="[0-9]{4,6}" value={form.door_code}
+                  <label htmlFor="f-doorcode">Clave de puerta (8 dígitos)</label>
+                  <input id="f-doorcode" inputMode="numeric" pattern="[0-9]{8}" value={form.door_code}
                     placeholder="Se genera automáticamente si lo dejas vacío"
-                    onChange={(e) => setForm({ ...form, door_code: e.target.value.replace(/\D/g, '').slice(0, 6) })} />
+                    onChange={(e) => setForm({ ...form, door_code: e.target.value.replace(/\D/g, '').slice(0, 8) })} />
                   <p className="hint">El pasajero la verá cuando la reserva esté confirmada.</p>
                 </div>
                 {formTotal != null && (

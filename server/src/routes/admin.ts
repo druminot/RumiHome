@@ -113,8 +113,8 @@ adminRouter.patch('/reservations/:id', async (req, res) => {
   if (b.status && !['pendiente', 'confirmada', 'cancelada', 'finalizada'].includes(b.status)) {
     return res.status(400).json({ error: 'Estado inválido' })
   }
-  if (b.door_code !== undefined && b.door_code !== null && !/^\d{4,6}$/.test(String(b.door_code).trim())) {
-    return res.status(400).json({ error: 'La clave de puerta debe ser 4 a 6 dígitos' })
+  if (b.door_code !== undefined && b.door_code !== null && !/^\d{8}$/.test(String(b.door_code).trim())) {
+    return res.status(400).json({ error: 'La clave de puerta debe ser 8 dígitos' })
   }
   if (b.guests !== undefined) {
     const g = Number(b.guests)
