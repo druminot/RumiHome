@@ -561,7 +561,7 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
   background: #86868b;
   flex-shrink: 0;
 }
-.key-dot.open { background: #8CA18B; }
+.key-dot.open { background: #008234; }
 .smarthome-grid { margin-top: 12px; }
 
 /* ============ Formularios inline (gastos etc.) ============ */
