@@ -27,6 +27,7 @@ export interface ReservationRow {
   guests: number
   price_per_night: number | null
   total_price: number | null
+  door_code: string | null
   status: string
   notes: string | null
   created_at: string
@@ -65,6 +66,7 @@ db.exec(`
     guests INTEGER NOT NULL DEFAULT 1,
     price_per_night INTEGER,
     total_price INTEGER,
+    door_code TEXT,
     status TEXT NOT NULL DEFAULT 'pendiente'
       CHECK (status IN ('pendiente','confirmada','cancelada','finalizada')),
     notes TEXT,
@@ -74,6 +76,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_reservations_rut ON reservations(guest_rut);
   CREATE INDEX IF NOT EXISTS idx_reservations_pnr ON reservations(pnr);
 `)
+
+/** Migración ALTER para añadir door_code a instalaciones existentes. */
+function migrateDoorCode(): void {
+  const cols = db.prepare("PRAGMA table_info('reservations')").all() as { name: string }[]
+  if (cols.length && !cols.some((c) => c.name === 'door_code')) {
+    db.exec('ALTER TABLE reservations ADD COLUMN door_code TEXT')
+  }
+}
 
 /** Migración desde esquema previo (sin property_id / precios). */
 function migrateLegacySchema(): void {
@@ -130,6 +140,7 @@ function ensureDefaultProperty(): void {
 
 ensureDefaultProperty()
 migrateLegacySchema()
+migrateDoorCode()
 
 // Índice que referencia property_id: solo tras la migración del esquema legacy
 db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_property_dates ON reservations(property_id, check_in, check_out)')
@@ -141,6 +152,11 @@ export function generatePnr(): string {
   let code = ''
   for (const b of bytes) code += alphabet[b % alphabet.length]
   return `RUMI-${code}`
+}
+
+/** Clave numérica de puerta: 4-6 dígitos aleatorios. */
+export function generateDoorCode(): string {
+  return String(1000 + (randomBytes(4).readUInt32BE(0) % 900000)).padStart(4, '0').slice(0, 6)
 }
 
 export function listProperties(): PropertyRow[] {
@@ -197,11 +213,13 @@ export function createReservation(data: {
   check_out: string
   guests: number
   price_per_night?: number | null
+  door_code?: string | null
   notes?: string
 }): ReservationRow {
   const prop = getProperty(data.property_id)
   if (!prop) throw new Error('propiedad_no_encontrada')
   const price = data.price_per_night ?? prop.base_price_per_night ?? null
+  const doorCode = data.door_code?.trim() || generateDoorCode()
 
   // Transacción: anti-solapamiento atómico
   const run = (): number => {
@@ -212,8 +230,8 @@ export function createReservation(data: {
       }
     const totals = computeTotals(price, data.check_in, data.check_out)
     const stmt = db.prepare(`
-      INSERT INTO reservations (pnr, property_id, guest_name, guest_rut, guest_email, guest_phone, arrival_time, check_in, check_out, guests, price_per_night, total_price, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO reservations (pnr, property_id, guest_name, guest_rut, guest_email, guest_phone, arrival_time, check_in, check_out, guests, price_per_night, total_price, door_code, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const info = stmt.run(
       generatePnr(),
@@ -228,6 +246,7 @@ export function createReservation(data: {
       data.guests,
       totals.price_per_night,
       totals.total_price,
+      doorCode,
       data.notes ?? null,
     )
       return Number(info.lastInsertRowid)
@@ -262,6 +281,7 @@ export function updateReservation(
     check_out: string
     guests: number
     price_per_night: number | null
+    door_code: string | null
     status: string
     notes: string | null
   }>,
@@ -290,12 +310,12 @@ export function updateReservation(
       UPDATE reservations SET
         property_id = ?, guest_name = ?, guest_rut = ?, guest_email = ?, guest_phone = ?,
         arrival_time = ?, check_in = ?, check_out = ?, guests = ?,
-        price_per_night = ?, total_price = ?, status = ?, notes = ?, updated_at = ?
+        price_per_night = ?, total_price = ?, door_code = ?, status = ?, notes = ?, updated_at = ?
       WHERE id = ?
     `).run(
       next.property_id, next.guest_name, next.guest_rut, next.guest_email, next.guest_phone,
       next.arrival_time, next.check_in, next.check_out, next.guests,
-      next.price_per_night, next.total_price, next.status, next.notes,
+      next.price_per_night, next.total_price, next.door_code, next.status, next.notes,
         next.updated_at, id,
       )
     } finally {

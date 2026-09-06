@@ -161,6 +161,27 @@ function ReservationCard({
         </div>
       )}
 
+      {/* Acceso al departamento: solo reservas confirmadas */}
+      {reservation.status === 'confirmada' && reservation.door_code && (
+        <div className="door-access-card">
+          <div className="door-access-head">
+            <span className="door-icon">🔑</span>
+            <div>
+              <b>Acceso al departamento</b>
+              <p>Teclado de la puerta principal</p>
+            </div>
+          </div>
+          <div className="door-code-display">{reservation.door_code}</div>
+          <p className="hint">Guarda esta clave. Funciona desde el día de tu check-in hasta el día de tu salida.</p>
+        </div>
+      )}
+
+      {reservation.status === 'pendiente' && (
+        <div className="alert info">
+          Cuando el anfitrión confirme tu reserva, verás aquí la clave de la puerta.
+        </div>
+      )}
+
       {reservation.notes && (
         <div className="alert info">
           <strong>Notas:</strong> {reservation.notes}

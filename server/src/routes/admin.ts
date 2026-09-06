@@ -56,6 +56,7 @@ adminRouter.post('/reservations', async (req: Request, res: Response) => {
         check_out: String(check_out),
         guests: guestsNum,
         price_per_night: price,
+        door_code: req.body.door_code?.trim() || undefined,
         notes: req.body.notes?.trim() || undefined,
       })
       res.status(201).json(created)
@@ -112,6 +113,9 @@ adminRouter.patch('/reservations/:id', async (req, res) => {
   if (b.status && !['pendiente', 'confirmada', 'cancelada', 'finalizada'].includes(b.status)) {
     return res.status(400).json({ error: 'Estado inválido' })
   }
+  if (b.door_code !== undefined && b.door_code !== null && !/^\d{4,6}$/.test(String(b.door_code).trim())) {
+    return res.status(400).json({ error: 'La clave de puerta debe ser 4 a 6 dígitos' })
+  }
   if (b.guests !== undefined) {
     const g = Number(b.guests)
     const prop = getProperty(Number(b.property_id ?? existing.property_id))
@@ -159,6 +163,8 @@ function guestView(r: NonNullable<ReturnType<typeof getReservationById>>) {
     nights: Math.max(0, Math.round((Date.parse(r.check_out) - Date.parse(r.check_in)) / 86400000)),
     price_per_night: r.price_per_night,
     total_price: r.total_price,
+    // Clave de puerta solo si la reserva está confirmada
+    door_code: r.status === 'confirmada' ? r.door_code : null,
     status: r.status,
     notes: r.notes,
     guest_email: r.guest_email,

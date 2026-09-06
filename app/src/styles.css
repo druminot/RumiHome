@@ -433,3 +433,183 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
   .reservation-card { padding: 1.6rem; }
   td.actions { flex-wrap: wrap; }
 }
+/* ============ Tabs principales ============ */
+.main-tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: 24px;
+}
+.main-tab {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 50px;
+  font: inherit;
+  font-weight: 600;
+  color: #A8A8A8;
+  cursor: pointer;
+  transition: color .15s, background .15s;
+}
+.main-tab:hover { color: #363636; }
+.main-tab.active {
+  background: #E8E4DD;
+  color: #363636;
+}
+
+/* ============ Subtabs (Gastos & Redes) ============ */
+.subtabs {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0 20px;
+  border-bottom: 2px solid #E8E4DD;
+  padding-bottom: 0;
+}
+.subtab {
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  color: #A8A8A8;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s;
+}
+.subtab:hover { color: #363636; }
+.subtab.active {
+  color: #A9563F;
+  border-bottom-color: #A9563F;
+}
+
+/* ============ Dashboard ============ */
+.dashboard-section {
+  margin: 24px 0;
+  padding: 20px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #E8E4DD;
+}
+.dashboard-section h3 { margin-top: 0; }
+.dashboard-section h4 { margin: 16px 0 8px; color: #4a463f; }
+.dashboard-section-inner { margin-top: 16px; }
+.dashboard-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+.chart {
+  width: 100%;
+  height: auto;
+  max-width: 640px;
+}
+.stat-card.neto span { font-size: 1.6rem; }
+.stat-card span.pos { color: #6B8767; }
+.stat-card span.neg { color: #A9563F; }
+.cat-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.cat-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px dashed #E8E4DD;
+  font-size: .95rem;
+}
+.cat-list li:last-child { border-bottom: none; }
+.cat-list small { color: #A8A8A8; }
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .9rem;
+}
+.mini-table th {
+  text-align: left;
+  color: #A8A8A8;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-bottom: 1px solid #E8E4DD;
+}
+.mini-table td {
+  padding: 6px 8px;
+  border-bottom: 1px dashed #E8E4DD;
+}
+.event-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: .9rem;
+}
+.event-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px dashed #E8E4DD;
+}
+.event-list li:last-child { border-bottom: none; }
+.event-list small { margin-left: auto; color: #A8A8A8; }
+.key-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #A8A8A8;
+  flex-shrink: 0;
+}
+.key-dot.open { background: #8CA18B; }
+.smarthome-grid { margin-top: 12px; }
+
+/* ============ Formularios inline (gastos etc.) ============ */
+.inline-form {
+  background: #FAF9F6;
+  border: 1px solid #E8E4DD;
+  border-radius: 16px;
+  padding: 20px;
+  margin: 16px 0;
+}
+.inline-form h4 { margin: 12px 0 8px; }
+.field.grow { flex: 1; min-width: 140px; }
+.item-row { align-items: flex-end; }
+.item-del { margin-bottom: 26px; }
+.draft-total { margin-left: auto; font-size: 1rem; color: #4a463f; }
+.actions-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.door-code, .api-key {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: .8rem;
+}
+
+/* ============ Clave de puerta (portal pasajero) ============ */
+.door-access-card {
+  background: linear-gradient(135deg, #363636 0%, #2a2724 100%);
+  border-radius: 16px;
+  padding: 20px;
+  margin: 16px 0;
+  color: #FAF9F6;
+}
+.door-access-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.door-access-head .door-icon { font-size: 1.6rem; }
+.door-access-head b { display: block; }
+.door-access-head p {
+  margin: 2px 0 0;
+  color: #A8A8A8;
+  font-size: .85rem;
+}
+.door-access-card .hint { color: #A8A8A8; font-size: .8rem; margin: 8px 0 0; }
+.door-code-display {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: 8px;
+  background: rgba(250, 249, 246, .1);
+  border-radius: 12px;
+  padding: 12px 20px;
+  text-align: center;
+  color: #DCC4A1;
+}
