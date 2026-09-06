@@ -8,9 +8,9 @@
   --wood: #DCC4A1;
   --gray: #d2d2d7;
   --muted: #86868b;
-  --accent: #C16A54;
-  --accent-cta: #A9563F;
-  --accent-dark: #8f4532;
+  --accent: #0066CC;
+  --accent-cta: #0071e3;
+  --accent-dark: #0077ed;
   --sage: #8CA18B;
   --sage-deep: #5F7A5F;
   --white: #ffffff;
@@ -481,8 +481,8 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
 }
 .subtab:hover { color: #1d1d1f; }
 .subtab.active {
-  color: #A9563F;
-  border-bottom-color: #A9563F;
+  color: #0071e3;
+  border-bottom-color: #0071e3;
 }
 
 /* ============ Dashboard ============ */
@@ -508,7 +508,7 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
 }
 .stat-card.neto span { font-size: 1.6rem; }
 .stat-card span.pos { color: #6B8767; }
-.stat-card span.neg { color: #A9563F; }
+.stat-card span.neg { color: #0071e3; }
 .cat-list {
   list-style: none;
   padding: 0;
@@ -635,7 +635,7 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
   cursor: default;
 }
 .hour-bar-fill {
-  background: #C16A54;
+  background: #0071e3;
   border-radius: 3px 3px 0 0;
   min-height: 2px;
   transition: opacity .15s;
@@ -716,7 +716,7 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
 .device-seen { color: #86868b; font-size: .68rem; white-space: nowrap; }
 
 .stat-card.accent {
-  border-left: 3px solid #C16A54;
+  border-left: 3px solid #0071e3;
 }
 
 .usage-bar {
@@ -729,7 +729,7 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
 .usage-bar-fill {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #DCC4A1, #C16A54);
+  background: linear-gradient(90deg, #5ac8fa, #0071e3);
   border-radius: 50px;
   transition: width .3s ease;
 }
