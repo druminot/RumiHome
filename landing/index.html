@@ -3,31 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rumihome — Tu hogar temporal</title>
-  <meta name="description" content="Departamento arrendado con todo lo necesario para una estadía cómoda y memorable. Concepción, Chile.">
-  <meta name="theme-color" content="#FAF9F6">
+  <title>Rumihome — Departamento amoblado en Concepción</title>
+  <meta name="description" content="Departamento completamente amoblado y equipado para arriendo temporal. Concepción, Chile. Arriendos desde 2 días.">
+  <meta name="theme-color" content="#ffffff">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏡</text></svg>">
-  <meta property="og:title" content="Rumihome — Tu hogar temporal">
-  <meta property="og:description" content="Departamento completamente equipado para arriendo temporal. Concepción, Chile.">
+  <meta property="og:title" content="Rumihome — Departamento amoblado en Concepción">
+  <meta property="og:description" content="Departamento completamente equipado para arriendo temporal. Concepción, Chile. Arriendos desde 2 días.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://rumihome.io">
+  <meta property="og:image" content="https://rumihome.io/img/hero.jpg">
   <style>
     :root {
-      --bg: #FAF9F6;
-      --tile: #F5F4F1;         /* gris cálido tipo Apple */
-      --dark: #1d1d1f;         /* casi negro Apple */
-      --text: #1d1d1f;
-      --text-soft: #6e6e73;    /* gris Apple */
-      --soft: #E8E4DD;
+      --bg: #ffffff;
+      --text: #222222;
+      --text-soft: #6a6a6a;
+      --tile: #F7F7F7;
+      --border: #DDDDDD;
+      --accent: #B3542D;        /* terracota cálido (CTA) */
+      --accent-hover: #99431f;
+      --success: #008234;       /* verde acción */
       --wood: #DCC4A1;
-      --gray: #A8A8A8;
-      --accent: #0066CC;       /* azul Apple */
-      --accent-hover: #0077ed;
-      --sage: #8CA18B;
-      --sage-deep: #5F7A5F;
-      --white: #ffffff;
-      --radius: 18px;
-      --gap: 12px;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
@@ -36,440 +31,298 @@
       * { transition: none !important; animation: none !important; }
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
-    h1, h2, h3 {
-      letter-spacing: -0.022em;
-      text-wrap: balance;
-    }
-    p { text-wrap: pretty; }
-
     :is(a, button):focus-visible {
       outline: 3px solid var(--accent);
-      outline-offset: 3px;
-      border-radius: 6px;
+      outline-offset: 2px;
+      border-radius: 8px;
     }
+    section { scroll-margin-top: 5.5rem; }
 
-    .container { max-width: 1440px; margin: 0 auto; padding: 0 max(22px, 2.5vw); }
-    section { scroll-margin-top: 7rem; }
-
-    /* ===== Nav global (Apple: 12px, blur, 48px alto) ===== */
+    /* ===== Nav estilo Airbnb: blanca, 14px, borde inferior ===== */
     nav.global {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-      height: 48px;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0 max(22px, 2.5vw);
-      background: rgba(250, 249, 246, 0.78);
-      backdrop-filter: saturate(180%) blur(20px);
-      -webkit-backdrop-filter: saturate(180%) blur(20px);
-    }
-    nav.global a {
-      color: var(--dark); text-decoration: none;
-      font-size: 12px; font-weight: 400;
-      transition: color .2s, opacity .2s;
-    }
-    nav.global a:hover { color: var(--accent); }
-    .logo {
-      font-size: 18px !important; font-weight: 600; letter-spacing: -0.02em;
-    }
-    .logo span { color: var(--accent); }
-    nav.global ul {
-      display: flex; gap: 28px; list-style: none; align-items: center;
-    }
-    .nav-pill {
-      background: var(--accent) !important; color: var(--white) !important;
-      padding: 6px 14px !important; border-radius: 980px; font-weight: 500 !important;
-    }
-    .nav-pill:hover { background: var(--accent-hover) !important; }
-
-    /* ===== Subnav de producto (Apple Store: sticky con nombre + Comprar) ===== */
-    .subnav {
-      position: sticky; top: 48px; z-index: 99;
-      background: rgba(250, 249, 246, 0.82);
-      backdrop-filter: saturate(180%) blur(20px);
-      -webkit-backdrop-filter: saturate(180%) blur(20px);
-      border-bottom: 1px solid rgba(29, 29, 31, 0.1);
-    }
-    .subnav .container {
-      height: 52px;
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
-    }
-    .subnav h2 { font-size: 21px; font-weight: 600; white-space: nowrap; }
-    .subnav-links { display: flex; align-items: center; gap: 24px; }
-    .subnav-links a {
-      font-size: 12px; color: var(--text-soft); text-decoration: none;
-      transition: color .2s;
-    }
-    .subnav-links a:hover { color: var(--dark); }
-    .subnav-links .pill {
-      background: var(--accent); color: var(--white);
-      padding: 6px 16px; border-radius: 980px; font-weight: 500;
-      transition: background .2s;
-    }
-    .subnav-links .pill:hover { background: var(--accent-hover); color: var(--white); }
-
-    /* ===== Hero (Apple: titular gigante, links con chevron) ===== */
-    .hero {
-      padding: 108px 22px 64px;
-      text-align: center;
+      position: sticky; top: 0; z-index: 100;
       background: var(--bg);
+      border-bottom: 1px solid var(--border);
     }
-    .hero .eyebrow {
-      font-size: 19px; font-weight: 600; color: var(--accent);
-      margin-bottom: 6px;
+    nav.global .inner {
+      max-width: 1440px; margin: 0 auto;
+      height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 max(20px, 2.5vw);
     }
-    .hero h1 {
-      font-size: clamp(48px, 7.5vw, 84px);
-      font-weight: 700;
-      line-height: 1.05;
-      letter-spacing: -0.03em;
-      color: var(--dark);
-      margin: 0 auto 14px;
-      max-width: 900px;
+    .logo { font-size: 22px; font-weight: 700; color: var(--accent); text-decoration: none; letter-spacing: -0.02em; }
+    .logo b { color: var(--text); font-weight: 700; }
+    nav.global ul {
+      display: flex; gap: 4px; list-style: none; align-items: center;
     }
-    .hero .sub {
-      font-size: clamp(19px, 2.4vw, 25px);
-      color: var(--text-soft);
-      max-width: 640px;
-      margin: 0 auto 26px;
-      letter-spacing: -0.01em;
+    nav.global ul a {
+      color: var(--text); text-decoration: none;
+      font-size: 14px; font-weight: 500;
+      padding: 10px 14px; border-radius: 22px;
+      transition: background .15s;
     }
-    .hero-links {
-      display: flex; justify-content: center; align-items: center; gap: 28px; flex-wrap: wrap;
+    nav.global ul a:hover { background: var(--tile); }
+    .cta-pill {
+      background: var(--accent); color: #fff;
+      text-decoration: none; font-size: 14px; font-weight: 600;
+      padding: 10px 18px; border-radius: 22px;
+      transition: background .15s, transform .15s;
+      white-space: nowrap;
     }
-    .pill-big {
+    .cta-pill:hover { background: var(--accent-hover); }
+    .cta-pill.small { padding: 8px 14px; font-size: 13px; }
+
+    /* ===== Hero con foto (Airbnb listing style) ===== */
+    .hero { max-width: 1440px; margin: 0 auto; padding: 20px max(20px, 2.5vw) 0; }
+    .hero-head { padding: 24px 0 18px; }
+    .hero-head h1 {
+      font-size: clamp(26px, 3.6vw, 40px);
+      font-weight: 700; letter-spacing: -0.02em; line-height: 1.15;
+      color: var(--text);
+    }
+    .hero-head .meta {
+      display: flex; flex-wrap: wrap; gap: 6px 14px;
+      margin-top: 8px; font-size: 15px; color: var(--text-soft);
+      align-items: center;
+    }
+    .hero-head .meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-soft); display: inline-block; }
+    .badge-new {
       display: inline-block;
-      background: var(--accent); color: var(--white);
-      padding: 12px 24px; border-radius: 980px;
-      text-decoration: none; font-size: 17px; font-weight: 500;
-      transition: background .2s;
+      background: var(--success); color: #fff;
+      font-size: 12px; font-weight: 700;
+      padding: 3px 10px; border-radius: 6px;
+      margin-right: 6px; letter-spacing: .3px;
     }
-    .pill-big:hover { background: var(--accent-hover); }
-    .chev {
-      color: var(--accent); text-decoration: none;
-      font-size: 17px; font-weight: 400;
+    .hero-grid {
+      display: grid; grid-template-columns: 2fr 1fr; gap: 10px;
+      border-radius: 16px; overflow: hidden;
     }
-    .chev:hover { text-decoration: underline; }
-    .chev::after { content: " ›"; font-size: 90%; }
+    .hero-grid img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      transition: transform .3s;
+    }
+    .hero-grid a { display: block; overflow: hidden; }
+    .hero-grid a:hover img { transform: scale(1.03); }
+    .hero-main { aspect-ratio: 16 / 10.5; }
+    .hero-side { display: grid; grid-template-rows: 1fr 1fr; gap: 10px; }
+    .hero-side img { aspect-ratio: 16 / 10; }
 
-    /* ===== Tiles 2-up (Apple Store: gap 12px, radius 18px) ===== */
-    .tiles-2up {
-      display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
-      padding: 0 max(22px, 2.5vw) max(22px, 2.5vw); max-width: 1440px; margin: 0 auto;
+    /* ===== Amenities ===== */
+    .amenities { max-width: 1440px; margin: 0 auto; padding: 40px max(20px, 2.5vw); }
+    .amenities h2 { font-size: 22px; font-weight: 700; margin-bottom: 20px; letter-spacing: -0.01em; }
+    .amenity-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px 16px;
     }
-    .tile {
-      border-radius: var(--radius);
-      padding: 56px 40px 48px;
-      min-height: 460px;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: flex-end;
-      text-align: center;
-      overflow: hidden;
-      position: relative;
-    }
-    .tile .tile-icon {
-      font-size: 88px;
-      margin-bottom: auto;
-      padding-top: 24px;
-      filter: drop-shadow(0 12px 24px rgba(0,0,0,.18));
-    }
-    .tile h3 {
-      font-size: clamp(28px, 3.4vw, 38px);
-      font-weight: 700; letter-spacing: -0.022em;
-      margin-bottom: 10px;
-    }
-    .tile p { font-size: 17px; margin-bottom: 18px; }
-    .tile .chev { font-size: 17px; }
-    .tile-dark {
-      background: linear-gradient(180deg, #2a2724 0%, #1d1d1f 100%);
-      color: var(--white);
-    }
-    .tile-dark h3 { color: var(--white); }
-    .tile-dark p { color: #a1a1a6; }
-    .tile-dark .chev { color: var(--wood); }
-    .tile-dark .chev:hover { color: #e8dcc9; }
-    .tile-light {
-      background: linear-gradient(180deg, var(--soft) 0%, var(--wood) 160%);
-      color: var(--dark);
-    }
-    .tile-light p { color: #57534c; }
-    .tile-light .chev { color: var(--accent); }
+    .amenity { display: flex; gap: 14px; align-items: flex-start; }
+    .amenity .ico { font-size: 24px; line-height: 1; }
+    .amenity b { display: block; font-size: 15px; font-weight: 600; }
+    .amenity span { font-size: 14px; color: var(--text-soft); }
 
-    /* ===== Sección features (Apple: bg gris, tiles blancos) ===== */
-    .band-gray { background: var(--tile); }
-    .band-pad { padding: 96px 22px; }
-    .section-head { text-align: center; margin-bottom: 48px; }
-    .section-head h2 {
-      font-size: clamp(32px, 4.8vw, 48px);
-      font-weight: 700; letter-spacing: -0.025em; line-height: 1.1;
-      color: var(--dark);
-    }
-    .section-head p {
-      font-size: clamp(17px, 2.2vw, 21px);
-      color: var(--text-soft);
-      margin-top: 12px;
-    }
-    .features {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: var(--gap);
-      max-width: 1440px; margin: 0 auto;
-    }
-    .card {
-      background: var(--white);
-      border-radius: var(--radius);
-      padding: 40px 32px 36px;
-      text-align: left;
-      transition: transform .25s, box-shadow .25s;
-    }
-    .card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 32px rgba(29,29,31,0.08);
-    }
-    .card .icon {
-      font-size: 44px;
-      margin-bottom: 18px;
-    }
-    .card h3 {
-      font-size: 21px; font-weight: 600; letter-spacing: -0.015em;
-      margin-bottom: 8px; color: var(--dark);
-    }
-    .card p { font-size: 15px; color: var(--text-soft); line-height: 1.55; }
+    /* ===== Divider ===== */
+    .divider { max-width: 1440px; margin: 0 auto; padding: 0 max(20px, 2.5vw); }
+    .divider hr { border: none; border-top: 1px solid var(--border); }
 
-    /* ===== Galería (Apple: tiles grandes 2-up) ===== */
+    /* ===== Galería ===== */
+    .gallery-sec { max-width: 1440px; margin: 0 auto; padding: 24px max(20px, 2.5vw) 48px; }
+    .gallery-sec h2 { font-size: 22px; font-weight: 700; margin-bottom: 16px; }
     .gallery {
-      display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
-      max-width: 1440px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
     }
-    .ph {
-      aspect-ratio: 16 / 10;
-      border-radius: var(--radius);
-      background:
-        radial-gradient(120% 120% at 20% 10%, var(--wood) 0%, var(--soft) 55%, #d8d2c6 100%);
-      display: flex; align-items: flex-end; justify-content: flex-start;
-      color: #6b6252;
-      font-size: 15px; font-weight: 500; letter-spacing: 0.2px;
-      padding: 24px;
-      position: relative;
-      transition: transform .25s, box-shadow .25s;
+    .gallery figure {
+      border-radius: 12px; overflow: hidden;
+      aspect-ratio: 4 / 3; background: var(--tile);
     }
-    .ph:nth-child(even) {
-      background:
-        radial-gradient(120% 120% at 80% 20%, var(--soft) 0%, var(--wood) 60%, #cbb694 100%);
+    .gallery img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      transition: transform .3s;
     }
-    .ph:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(29,29,31,0.10); }
+    .gallery figure:hover img { transform: scale(1.04); }
+    .gallery figcaption {
+      position: absolute; left: 12px; bottom: 12px;
+      background: rgba(255,255,255,.92);
+      font-size: 12px; font-weight: 600; color: var(--text);
+      padding: 4px 10px; border-radius: 14px;
+    }
+    .gallery figure { position: relative; }
 
-    /* ===== CTA oscuro (Apple: tile negro con pill blanco) ===== */
-    .cta-wrap { padding: max(22px, 2.5vw); max-width: 1440px; margin: 0 auto; }
-    .cta {
-      background: linear-gradient(180deg, #2a2724 0%, #1d1d1f 100%);
-      border-radius: var(--radius);
-      color: var(--white);
-      text-align: center;
-      padding: 88px 32px;
+    /* ===== CTA booking card (como el widget de reserva de Airbnb) ===== */
+    .book-sec { max-width: 1440px; margin: 0 auto; padding: 0 max(20px, 2.5vw) 64px; }
+    .book-card {
+      background: var(--tile);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px;
     }
-    .cta h2 {
-      font-size: clamp(36px, 5.5vw, 56px);
-      font-weight: 700; letter-spacing: -0.028em; line-height: 1.08;
-      color: var(--white);
-      margin-bottom: 16px;
-    }
-    .cta p {
-      font-size: clamp(19px, 2.4vw, 24px);
-      color: #a1a1a6;
-      max-width: 620px; margin: 0 auto 32px;
-    }
-    .cta .pill-big { background: var(--white); color: var(--dark); }
-    .cta .pill-big:hover { background: var(--wood); }
-    .cta-meta {
-      display: flex; flex-wrap: wrap; justify-content: center; gap: 16px 48px;
-      margin-top: 44px; font-size: 13px; color: #a1a1a6;
-    }
-    .cta-meta b { color: var(--white); font-weight: 600; display: block; margin-bottom: 2px; }
+    .book-card h2 { font-size: clamp(22px, 3vw, 30px); font-weight: 700; letter-spacing: -0.02em; }
+    .book-card p { color: var(--text-soft); margin-top: 6px; font-size: 15px; }
+    .book-card .actions { display: flex; flex-direction: column; gap: 10px; min-width: 280px; }
+    .book-meta { display: flex; gap: 24px; margin-top: 18px; font-size: 13px; color: var(--text-soft); flex-wrap: wrap; }
+    .book-meta b { color: var(--text); display: block; font-size: 14px; }
 
-    /* ===== Footer estilo Apple ===== */
+    /* ===== Footer Airbnb ===== */
     footer {
       background: var(--tile);
-      border-top: 1px solid rgba(29,29,31,0.08);
-      font-size: 12px; color: var(--text-soft);
+      border-top: 1px solid var(--border);
+      font-size: 14px; color: var(--text);
     }
-    .foot-grid {
-      max-width: 1440px; margin: 0 auto; padding: 40px max(22px, 2.5vw) 20px;
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px;
+    .foot-inner {
+      max-width: 1440px; margin: 0 auto;
+      padding: 32px max(20px, 2.5vw);
+      display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px;
     }
-    .foot-grid h4 {
-      font-size: 12px; font-weight: 600; color: var(--dark);
-      margin-bottom: 10px;
-    }
-    .foot-grid p, .foot-grid a { font-size: 12px; color: var(--text-soft); text-decoration: none; line-height: 1.8; }
-    .foot-grid a:hover { color: var(--dark); text-decoration: underline; }
+    .foot-inner a { color: var(--text); text-decoration: none; font-weight: 500; }
+    .foot-inner a:hover { text-decoration: underline; }
     .foot-legal {
-      max-width: 1440px; margin: 0 auto; padding: 0 max(22px, 2.5vw) 32px;
-      border-top: 1px solid rgba(29,29,31,0.08);
-      padding-top: 16px;
+      max-width: 1440px; margin: 0 auto;
+      padding: 0 max(20px, 2.5vw) 28px;
+      font-size: 13px; color: var(--text-soft);
     }
 
     /* ===== Responsive ===== */
-    @media (max-width: 860px) {
+    @media (max-width: 900px) {
       nav.global ul { display: none; }
-      .subnav h2 { font-size: 17px; }
-      .subnav-links a:not(.pill) { display: none; }
-      .tiles-2up, .gallery { grid-template-columns: 1fr; }
-      .features { grid-template-columns: 1fr 1fr; }
-      .tile { min-height: 380px; padding: 40px 28px 36px; }
-      .foot-grid { grid-template-columns: 1fr 1fr; }
+      .hero-grid { grid-template-columns: 1fr; }
+      .hero-side { grid-template-rows: none; grid-template-columns: 1fr 1fr; }
+      .hero-side img { aspect-ratio: 16 / 10; }
+      .hero-side a:nth-child(n+3) { display: none; }
+      .amenity-grid { grid-template-columns: 1fr 1fr; }
+      .gallery { grid-template-columns: 1fr 1fr; }
+ .gallery figure:nth-child(n+5) { display: none; }
     }
     @media (max-width: 560px) {
-      .features { grid-template-columns: 1fr; }
-      .hero { padding-top: 84px; }
-      .hero-links { gap: 18px; }
+      .amenity-grid { grid-template-columns: 1fr; }
+      .gallery { grid-template-columns: 1fr; }
+      .gallery figure:nth-child(n+5) { display: block; }
+      .book-card { padding: 28px 22px; }
+      .hero-head h1 { font-size: 24px; }
     }
   </style>
 </head>
 <body>
 
-<nav class="global" aria-label="Navegación global">
-  <a class="logo" href="#">rumi<span>home</span></a>
-  <ul>
-    <li><a href="#caracteristicas">Características</a></li>
-    <li><a href="#galeria">Galería</a></li>
-    <li><a href="/reserva">Mi reserva</a></li>
-    <li><a href="#reserva">Contacto</a></li>
-  </ul>
-  <a class="nav-pill" href="#reserva">Reservar</a>
-</nav>
-
-<div class="subnav" role="region" aria-label="Producto">
-  <div class="container">
-    <h2>Departamento Concepción</h2>
-    <div class="subnav-links">
-      <a href="#reserva">Desde 2 días · Concepción</a>
-      <a class="pill" href="#reserva">Consultar disponibilidad</a>
-    </div>
+<nav class="global" aria-label="Navegación principal">
+  <div class="inner">
+    <a class="logo" href="#">rumi<b>home</b></a>
+    <ul>
+      <li><a href="#amenidades">Amenidades</a></li>
+      <li><a href="#galeria">Galería</a></li>
+      <li><a href="/reserva">Mi reserva</a></li>
+    </ul>
+    <a class="cta-pill" href="#reservar">Consultar disponibilidad</a>
   </div>
-</div>
+</nav>
 
 <main>
 <header class="hero">
-  <p class="eyebrow">Disponible para arriendo</p>
-  <h1>Tu hogar temporal.</h1>
-  <p class="sub">Departamento completamente equipado, luminoso y en la mejor zona de Concepción. Arriendos desde 2 días.</p>
-  <div class="hero-links">
-    <a class="pill-big" href="#reserva">Consultar disponibilidad</a>
-    <a class="chev" href="#caracteristicas">Más información</a>
+  <div class="hero-head">
+    <h1>Departamento amoblado en Concepción</h1>
+    <div class="meta">
+      <span><span class="badge-new">Disponible</span></span>
+      <span>Concepción, Región del Biobío, Chile</span>
+      <span class="dot" aria-hidden="true"></span>
+      <span>3 dormitorios · 2 baños</span>
+      <span class="dot" aria-hidden="true"></span>
+      <span>Hasta 6 huéspedes</span>
+      <span class="dot" aria-hidden="true"></span>
+      <span>Arriendos desde 2 días</span>
+    </div>
+  </div>
+  <div class="hero-grid">
+    <a class="hero-main" href="#galeria" aria-label="Ver foto del living-comedor">
+      <img src="/img/hero.jpg" alt="Living-comedor del departamento con sofá gris, TV y comedor de madera" fetchpriority="high">
+    </a>
+    <div class="hero-side">
+      <a href="#galeria" aria-label="Ver foto del dormitorio principal">
+        <img src="/img/g3.jpg" alt="Dormitorio principal con cama matrimonial" loading="lazy">
+      </a>
+      <a href="#galeria" aria-label="Ver foto de la cocina">
+        <img src="/img/g8.jpg" alt="Cocina equipada" loading="lazy">
+      </a>
+    </div>
   </div>
 </header>
 
-<div class="tiles-2up">
-  <article class="tile tile-dark">
-    <span class="tile-icon" aria-hidden="true">🔑</span>
-    <h3>Llegada autónoma.</h3>
-    <p>Check-in con llave digital. Llega a la hora que te acomode, sin esperas.</p>
-    <a class="chev" href="/reserva">Ver mi reserva</a>
-  </article>
-  <article class="tile tile-light">
-    <span class="tile-icon" aria-hidden="true">🛏️</span>
-    <h3>Totalmente equipado.</h3>
-    <p>Cama matrimonial, cocina completa y todo listo para que solo llegues con tu maleta.</p>
-    <a class="chev" href="#caracteristicas">Conoce más</a>
-  </article>
-</div>
-
-<section id="caracteristicas" class="band-gray band-pad" aria-labelledby="t-carac">
-  <div class="section-head">
-    <h2 id="t-carac">Todo lo que necesitas.<br>Nada de lo que no.</h2>
-    <p>Pensado para estadías cómodas, de 2 días a varios meses.</p>
-  </div>
-  <div class="features">
-    <article class="card">
-      <div class="icon" aria-hidden="true">📶</div>
-      <h3>Wi-Fi de alta velocidad</h3>
-      <p>Fibra óptica en todo el departamento. Ideal para trabajo remoto o una peli.</p>
-    </article>
-    <article class="card">
-      <div class="icon" aria-hidden="true">🍳</div>
-      <h3>Cocina equipada</h3>
-      <p>Refrigerador, horno, microondas y todos los utensilios para cocinar como en casa.</p>
-    </article>
-    <article class="card">
-      <div class="icon" aria-hidden="true">📍</div>
-      <h3>Ubicación privilegiada</h3>
-      <p>A pasos de supermercados, restaurantes y transporte. Lo esencial a menos de 5 minutos.</p>
-    </article>
-    <article class="card">
-      <div class="icon" aria-hidden="true">🧺</div>
-      <h3>Ropa de cama incluida</h3>
-      <p>Sábanas, toallas y todo listo. Sin trámites ni compras extra al llegar.</p>
-    </article>
-    <article class="card">
-      <div class="icon" aria-hidden="true">🧼</div>
-      <h3>Limpieza flexible</h3>
-      <p>Coordinamos limpieza para estadías largas, para que solo te preocupes de disfrutar.</p>
-    </article>
-    <article class="card">
-      <div class="icon" aria-hidden="true">💬</div>
-      <h3>Respuesta rápida</h3>
-      <p>Escríbeme por WhatsApp o correo y recibes respuesta el mismo día.</p>
-    </article>
+<section id="amenidades" class="amenities" aria-labelledby="t-amen">
+  <h2 id="t-amen">Todo lo que necesitas</h2>
+  <div class="amenity-grid">
+    <div class="amenity">
+      <span class="ico" aria-hidden="true">🛏️</span>
+      <div><b>Amoblado completo</b><span>Camas, ropa de cama y clósets en los 3 dormitorios</span></div>
+    </div>
+    <div class="amenity">
+      <span class="ico" aria-hidden="true">📶</span>
+      <div><b>Wi-Fi de fibra óptica</b><span>Ideal para trabajo remoto y streaming</span></div>
+    </div>
+    <div class="amenity">
+      <span class="ico" aria-hidden="true">🍳</span>
+      <div><b>Cocina equipada</b><span>Refrigerador, horno, microondas y utensilios</span></div>
+    </div>
+    <div class="amenity">
+      <span class="ico" aria-hidden="true">🔑</span>
+      <div><b>Llegada autónoma</b><span>Check-in con clave digital, a tu hora</span></div>
+    </div>
+    <div class="amenity">
+      <span class="ico" aria-hidden="true">📺</span>
+      <div><b>Smart TV</b><span>Living con TV y sofá para relajarte</span></div>
+    </div>
+    <div class="amenity">
+      <span class="ico" aria-hidden="true">📍</span>
+      <div><b>Ubicación conveniente</b><span>Cerca de supermercados, restaurantes y transporte</span></div>
+    </div>
   </div>
 </section>
 
-<section id="galeria" class="band-pad" aria-labelledby="t-gal" style="background: var(--white);">
-  <div class="section-head">
-    <h2 id="t-gal">Un vistazo<br>al espacio.</h2>
-    <p>Fotos reales del departamento (próximamente).</p>
-  </div>
+<div class="divider"><hr></div>
+
+<section id="galeria" class="gallery-sec" aria-labelledby="t-gal">
+  <h2 id="t-gal">El espacio</h2>
   <div class="gallery">
-    <div class="ph" role="img" aria-label="Foto de la sala de estar (próximamente)">Sala de estar</div>
-    <div class="ph" role="img" aria-label="Foto del dormitorio (próximamente)">Dormitorio</div>
-    <div class="ph" role="img" aria-label="Foto de la cocina (próximamente)">Cocina</div>
-    <div class="ph" role="img" aria-label="Foto del baño (próximamente)">Baño</div>
+    <figure><img src="/img/g1.jpg" alt="Living con sofá y TV" loading="lazy"><figcaption>Living</figcaption></figure>
+    <figure><img src="/img/g2.jpg" alt="Comedor para 4 personas" loading="lazy"><figcaption>Comedor</figcaption></figure>
+    <figure><img src="/img/g3.jpg" alt="Dormitorio principal" loading="lazy"><figcaption>Dormitorio principal</figcaption></figure>
+    <figure><img src="/img/g4.jpg" alt="Dormitorio secundario" loading="lazy"><figcaption>Dormitorio 2</figcaption></figure>
+    <figure><img src="/img/g5.jpg" alt="Dormitorio con escritorio" loading="lazy"><figcaption>Dormitorio 3 · escritorio</figcaption></figure>
+    <figure><img src="/img/g6.jpg" alt="Baño en suite" loading="lazy"><figcaption>Baño en suite</figcaption></figure>
+    <figure><img src="/img/g7.jpg" alt="Segundo baño" loading="lazy"><figcaption>Baño 2</figcaption></figure>
+    <figure><img src="/img/g8.jpg" alt="Cocina equipada" loading="lazy"><figcaption>Cocina</figcaption></figure>
+    <figure><img src="/img/g9.jpg" alt="Living comedor vista horizontal" loading="lazy"><figcaption>Living-comedor</figcaption></figure>
   </div>
 </section>
 
-<section id="reserva" class="cta-wrap" aria-labelledby="t-res">
-  <div class="cta">
-    <h2>¿Te interesa arrendar?</h2>
-    <p>Escríbeme y coordinamos una visita o te envío más fotos y detalles. Respuesta rápida garantizada.</p>
-    <a class="pill-big" href="mailto:tu-correo@rumihome.io?subject=Consulta%20arriendo%20Rumihome">Escríbeme por correo</a>
-    <div class="cta-meta">
-      <div><b>Ubicación</b>Concepción, Chile</div>
-      <div><b>Arriendos</b>Desde 2 días</div>
-      <div><b>Contacto</b>tu-correo@rumihome.io</div>
+<section id="reservar" class="book-sec" aria-labelledby="t-book">
+  <div class="book-card">
+    <div>
+      <h2 id="t-book">¿Te interesa arrendar?</h2>
+      <p>Escríbeme y coordinamos una visita o te envío más detalles. Respuesta rápida garantizada.</p>
+      <div class="book-meta">
+        <div><b>Ubicación</b>Concepción, Chile</div>
+        <div><b>Mínimo</b>2 noches</div>
+        <div><b>Check-in</b>Autónomo con clave</div>
+      </div>
+    </div>
+    <div class="actions">
+      <a class="cta-pill" href="mailto:tu-correo@rumihome.io?subject=Consulta%20arriendo%20Rumihome" style="text-align:center;">Escríbeme por correo</a>
+      <a class="cta-pill small" href="/reserva" style="background:var(--text);text-align:center;">Ya tengo reserva · Ver mi viaje</a>
     </div>
   </div>
 </section>
 </main>
 
 <footer>
-  <div class="foot-grid">
-    <div>
-      <h4>Rumihome</h4>
-      <p>Arriendo de departamento<br>amoblado en Concepción.</p>
-    </div>
-    <div>
-      <h4>Explorar</h4>
-      <a href="#caracteristicas">Características</a><br>
-      <a href="#galeria">Galería</a><br>
-      <a href="#reserva">Contacto</a>
-    </div>
-    <div>
-      <h4>Huéspedes</h4>
-      <a href="/reserva">Ver mi reserva</a><br>
-      <a href="/reserva">Check-in online</a>
-    </div>
-    <div>
-      <h4>Contacto</h4>
-      <p>tu-correo@rumihome.io<br>Concepción, Región del Biobío</p>
-    </div>
+  <div class="foot-inner">
+    <b>rumihome</b>
+    <a href="/reserva">Consultar mi reserva</a>
+    <a href="#reservar">Contacto</a>
+    <span style="color:var(--text-soft);">Concepción, Chile</span>
   </div>
-  <div class="foot-legal">
-    © 2026 rumihome.io · Arriendo de departamento · Concepción, Chile
-  </div>
+  <div class="foot-legal">© 2026 rumihome.io · Arriendo temporal de departamento amoblado</div>
 </footer>
 
 </body>

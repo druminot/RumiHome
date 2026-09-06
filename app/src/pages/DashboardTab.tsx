@@ -52,7 +52,7 @@ function IncomeChart({ series }: { series: FinanceAnalytics['monthly_series'] })
         const hEx = (s.expenses / max) * (H - PAD * 2)
         return (
           <g key={s.month}>
-            <rect x={x - BW - 2} y={H - PAD - hIn} width={BW} height={Math.max(hIn, 1)} rx="3" fill="#8CA18B" />
+            <rect x={x - BW - 2} y={H - PAD - hIn} width={BW} height={Math.max(hIn, 1)} rx="3" fill="#008234" />
             <rect x={x + 2} y={H - PAD - hEx} width={BW} height={Math.max(hEx, 1)} rx="3" fill="#0071e3" />
             <text x={x} y={H - 8} textAnchor="middle" fontSize="11" fill="#86868b">
               {MONTHS_ES[Number(s.month.slice(5)) - 1]}
@@ -61,7 +61,7 @@ function IncomeChart({ series }: { series: FinanceAnalytics['monthly_series'] })
         )
       })}
       <g>
-        <rect x={W - 150} y={6} width="10" height="10" rx="2" fill="#8CA18B" />
+        <rect x={W - 150} y={6} width="10" height="10" rx="2" fill="#008234" />
         <text x={W - 135} y={15} fontSize="11" fill="#1d1d1f">Ingresos</text>
         <rect x={W - 75} y={6} width="10" height="10" rx="2" fill="#0071e3" />
         <text x={W - 60} y={15} fontSize="11" fill="#1d1d1f">Gastos</text>
@@ -97,8 +97,8 @@ function EnergyChart({ data }: { data: SmartHomeSummary['energy_daily'] }) {
         )
       })}
       {/* Línea de promedio */}
-      <line x1={PADL} x2={W - PAD} y1={avgY} y2={avgY} stroke="#8CA18B" strokeWidth="1.5" strokeDasharray="5 4" />
-      <text x={W - PAD - 2} y={avgY - 5} textAnchor="end" fontSize="9" fill="#6B8767" fontWeight="600">
+      <line x1={PADL} x2={W - PAD} y1={avgY} y2={avgY} stroke="#008234" strokeWidth="1.5" strokeDasharray="5 4" />
+      <text x={W - PAD - 2} y={avgY - 5} textAnchor="end" fontSize="9" fill="#008234" fontWeight="600">
         prom {avg.toFixed(1)} kWh
       </text>
       {data.map((d, i) => {
