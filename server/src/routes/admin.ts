@@ -44,6 +44,9 @@ adminRouter.post('/reservations', async (req: Request, res: Response) => {
     if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
       return res.status(400).json({ error: 'Precio inválido' })
     }
+    if (req.body.door_code != null && req.body.door_code !== '' && !/^\d{8}$/.test(String(req.body.door_code).trim())) {
+      return res.status(400).json({ error: 'La clave de puerta debe ser 8 dígitos' })
+    }
     try {
       const created = createReservation({
         property_id: propertyId,
