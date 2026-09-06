@@ -70,28 +70,43 @@ function IncomeChart({ series }: { series: FinanceAnalytics['monthly_series'] })
   )
 }
 
-/** Línea de energía diaria (kWh). */
+/** Barras apiladas: energía diaria huésped (terracota) vs admin (gris). */
 function EnergyChart({ data }: { data: SmartHomeSummary['energy_daily'] }) {
   if (data.length === 0) return null
-  const W = 560, H = 160, PAD = 28
-  const max = Math.max(...data.map((d) => d.kwh), 1)
-  const step = (W - PAD * 2) / Math.max(data.length - 1, 1)
-  const pts = data.map((d, i) => `${PAD + i * step},${H - PAD - (d.kwh / max) * (H - PAD * 2)}`)
+  const W = 560, H = 180, PAD = 30
+  const max = Math.max(...data.map((d) => d.kwh_guest + d.kwh_admin), 1)
+  const step = (W - PAD * 2) / Math.max(data.length, 1)
+  const bw = Math.min(step * 0.6, 36)
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Energía diaria kWh" className="chart">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Energía diaria por huésped y admin" className="chart">
       {[0.5, 1].map((f) => (
         <line key={f} x1={PAD} x2={W - PAD} y1={H - PAD - (H - PAD * 2) * f} y2={H - PAD - (H - PAD * 2) * f}
           stroke="#E8E4DD" strokeWidth="1" />
       ))}
-      <polyline points={pts.join(' ')} fill="none" stroke="#DCC4A1" strokeWidth="2.5" strokeLinejoin="round" />
-      {data.map((d, i) => (
-        <g key={d.date}>
-          <circle cx={PAD + i * step} cy={H - PAD - (d.kwh / max) * (H - PAD * 2)} r="3.5" fill="#A9563F" />
-          <text x={PAD + i * step} y={H - 8} textAnchor="middle" fontSize="10" fill="#A8A8A8">
-            {d.date.slice(8)}
-          </text>
-        </g>
-      ))}
+      {data.map((d, i) => {
+        const x = PAD + i * step + step / 2
+        const hG = (d.kwh_guest / max) * (H - PAD * 2)
+        const hA = (d.kwh_admin / max) * (H - PAD * 2)
+        const total = d.kwh_guest + d.kwh_admin
+        return (
+          <g key={d.date}>
+            {d.kwh_admin > 0 && <rect x={x - bw / 2} y={H - PAD - hA} width={bw} height={Math.max(hA, 1)} rx="3" fill="#A8A8A8" />}
+            {d.kwh_guest > 0 && <rect x={x - bw / 2} y={H - PAD - hA - hG} width={bw} height={Math.max(hG, 1)} rx="3" fill="#C16A54" />}
+            <text x={x} y={H - PAD - hA - hG - 6} textAnchor="middle" fontSize="10" fill="#4a463f" fontWeight="600">
+              {total > 0 ? total.toFixed(1) : ''}
+            </text>
+            <text x={x} y={H - 8} textAnchor="middle" fontSize="10" fill="#A8A8A8">
+              {d.date.slice(8)}
+            </text>
+          </g>
+        )
+      })}
+      <g>
+        <rect x={W - 190} y={6} width="10" height="10" rx="2" fill="#C16A54" />
+        <text x={W - 175} y={15} fontSize="11" fill="#4a463f">Huésped</text>
+        <rect x={W - 110} y={6} width="10" height="10" rx="2" fill="#A8A8A8" />
+        <text x={W - 95} y={15} fontSize="11" fill="#4a463f">Admin</text>
+      </g>
     </svg>
   )
 }
@@ -256,29 +271,55 @@ export default function DashboardTab({ properties }: { properties: Property[] })
                   <span>{smart.devices.length}</span>
                 </div>
                 <div className="stat-card">
-                  <b>kWh hoy (aprox)</b>
-                  <span>{smart.energy_daily.at(-1)?.kwh.toFixed(1) ?? '—'}</span>
+                  <b>kWh huéspedes (7d)</b>
+                  <span>{smart.energy_daily.reduce((s, d) => s + d.kwh_guest, 0).toFixed(1)}</span>
                 </div>
                 <div className="stat-card">
-                  <b>kWh con huésped</b>
-                  <span className="stat-small">{smart.guest_vs_empty.avg_kwh_with_guest != null ? `${smart.guest_vs_empty.avg_kwh_with_guest.toFixed(1)}/día` : '—'}</span>
+                  <b>kWh admin (30d)</b>
+                  <span>{smart.admin_usage.kwh.toFixed(1)}</span>
+                  <span className="stat-small">
+                    {smart.admin_usage.avg_kwh_day != null ? `${smart.admin_usage.avg_kwh_day.toFixed(1)}/día` : ''}
+                  </span>
                 </div>
                 <div className="stat-card">
-                  <b>kWh sin huésped</b>
-                  <span className="stat-small">{smart.guest_vs_empty.avg_kwh_empty != null ? `${smart.guest_vs_empty.avg_kwh_empty.toFixed(1)}/día` : '—'}</span>
+                  <b>Precio kWh</b>
+                  <span className="stat-small">{fmtCLP(smart.kwh_price)}/kWh</span>
                 </div>
               </div>
 
               {smart.energy_daily.length > 0 && (
                 <div className="dashboard-section-inner">
-                  <h4>Energía diaria</h4>
+                  <h4>Energía diaria (huésped vs admin)</h4>
                   <EnergyChart data={smart.energy_daily} />
+                </div>
+              )}
+
+              {/* Uso por estadía */}
+              {smart.stays_usage.length > 0 && (
+                <div className="dashboard-section-inner">
+                  <h4>Uso por estadía</h4>
+                  <table className="mini-table">
+                    <thead>
+                      <tr><th>Huésped</th><th>Fechas</th><th>Propiedad</th><th>kWh</th><th>Costo</th></tr>
+                    </thead>
+                    <tbody>
+                      {smart.stays_usage.map((s) => (
+                        <tr key={s.reservation_id}>
+                          <td><b>{s.guest_name}</b> <small className="muted">{s.pnr}</small></td>
+                          <td>{s.check_in.slice(5)} → {s.check_out.slice(5)}</td>
+                          <td>{s.property_name}</td>
+                          <td>{s.kwh > 0 ? s.kwh.toFixed(1) : '—'}</td>
+                          <td>{s.kwh > 0 ? fmtCLP(s.cost_clp) : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
 
               <div className="dashboard-cols">
                 <div>
-                  <h4>Uso por dispositivo</h4>
+                  <h4>Uso por dispositivo (7d)</h4>
                   {smart.device_usage.length === 0 ? (
                     <p className="hint">Sin lecturas aún.</p>
                   ) : (
@@ -299,7 +340,7 @@ export default function DashboardTab({ properties }: { properties: Property[] })
                   )}
                 </div>
                 <div>
-                  <h4>Eventos de llave</h4>
+                  <h4>Eventos de llave (recientes)</h4>
                   {smart.key_events.length === 0 ? (
                     <p className="hint">Sin eventos de llave registrados.</p>
                   ) : (

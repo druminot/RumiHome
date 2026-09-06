@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { api } from '../api/client'
-import type { Reservation, ReservationStatus, Property, CalendarDay, NewReservation } from '../types'
+import type { Reservation, ReservationStatus, Property, CalendarDay, NewReservation, StayUsageDetail } from '../types'
 
 const STATUS_LABEL: Record<ReservationStatus, string> = {
   pendiente: 'Pendiente',
@@ -62,6 +62,8 @@ export default function ReservasTab() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [createdPnr, setCreatedPnr] = useState<string | null>(null)
+  const [stayUsage, setStayUsage] = useState<StayUsageDetail | null>(null)
+  const [stayLoading, setStayLoading] = useState(false)
 
   // Calendario
   const [calProperty, setCalProperty] = useState<number | null>(null)
@@ -196,6 +198,19 @@ export default function ReservasTab() {
     }
   }
 
+  async function openStayUsage(r: Reservation) {
+    setStayLoading(true)
+    setStayUsage(null)
+    try {
+      const d = await api.getStayUsage(r.id)
+      setStayUsage(d)
+    } catch {
+      setStayUsage(null)
+    } finally {
+      setStayLoading(false)
+    }
+  }
+
   async function handleDelete(r: Reservation) {
     if (!confirm(`¿Eliminar la reserva ${r.pnr} de ${r.guest_name}? Esta acción no se puede deshacer.`)) return
     try {
@@ -318,6 +333,7 @@ export default function ReservasTab() {
                     <td>{r.door_code ? <code className="door-code">{r.door_code}</code> : '—'}</td>
                     <td><span className={`badge ${r.status}`}>{STATUS_LABEL[r.status]}</span></td>
                     <td className="actions">
+                      <button className="btn small ghost" title="Consumo de la estadía" onClick={() => openStayUsage(r)}>⚡</button>
                       <button className="btn small ghost" onClick={() => openEdit(r)}>Editar</button>
                       <button className="btn small danger" onClick={() => handleDelete(r)}>Eliminar</button>
                     </td>
@@ -436,6 +452,93 @@ export default function ReservasTab() {
                   </button>
                 </div>
               </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: consumo de la estadía */}
+      {(stayUsage || stayLoading) && (
+        <div className="modal-backdrop" onClick={() => { setStayUsage(null); setStayLoading(false) }}>
+          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            {stayLoading || !stayUsage ? (
+              <div className="alert info">Cargando consumo…</div>
+            ) : (
+              <>
+                <h3>⚡ Consumo de la estadía</h3>
+                <p className="hint">
+                  {stayUsage.reservation.guest_name} · {stayUsage.reservation.pnr}<br />
+                  {stayUsage.reservation.check_in} → {stayUsage.reservation.check_out} · {stayUsage.reservation.property_name}
+                </p>
+                <div className="stats-grid">
+                  <div className="stat-card">
+                    <b>Energía total</b>
+                    <span>{stayUsage.kwh.toFixed(1)} kWh</span>
+                  </div>
+                  <div className="stat-card">
+                    <b>Costo estimado</b>
+                    <span>{new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(stayUsage.cost_clp)}</span>
+                  </div>
+                </div>
+
+                {stayUsage.hourly_profile.length > 0 && (
+                  <div className="dashboard-section-inner">
+                    <h4>Perfil horario (kWh)</h4>
+                    <div className="hourly-profile">
+                      {Array.from({ length: 24 }, (_, h) => {
+                        const point = stayUsage.hourly_profile.find((p) => p.hour === h)
+                        const kwh = point?.kwh ?? 0
+                        const max = Math.max(...stayUsage.hourly_profile.map((p) => p.kwh), 0.1)
+                        const hgt = Math.round((kwh / max) * 100)
+                        return (
+                          <div key={h} className="hour-bar" title={`${String(h).padStart(2, '0')}:00 — ${kwh.toFixed(2)} kWh`}>
+                            <div className="hour-bar-fill" style={{ height: `${hgt}%` }} />
+                            <span className="hour-label">{h % 3 === 0 ? String(h).padStart(2, '0') : ''}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <h4>Dispositivos durante la estadía</h4>
+                {stayUsage.device_usage.length === 0 ? (
+                  <p className="hint">Sin dispositivos registrados para esta propiedad.</p>
+                ) : (
+                  <table className="mini-table">
+                    <thead><tr><th>Dispositivo</th><th>Tipo</th><th>Horas on</th><th>kWh</th></tr></thead>
+                    <tbody>
+                      {stayUsage.device_usage.map((d) => (
+                        <tr key={d.name}>
+                          <td>{d.name}</td>
+                          <td>{d.type}</td>
+                          <td>{d.minutes_on > 0 ? (d.minutes_on / 60).toFixed(1) : '—'}</td>
+                          <td>{d.kwh > 0 ? d.kwh.toFixed(2) : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {stayUsage.key_events.length > 0 && (
+                  <>
+                    <h4>Llave ({stayUsage.key_events.length} eventos)</h4>
+                    <ul className="event-list">
+                      {stayUsage.key_events.slice(0, 10).map((e, i) => (
+                        <li key={i}>
+                          <span className={`key-dot ${e.event_type.includes('open') ? 'open' : ''}`} />
+                          <span>{e.event_type} {e.detail ? `· ${e.detail}` : ''}</span>
+                          <small>{e.event_at.slice(0, 16).replace('T', ' ')}</small>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+
+                <div className="actions-row">
+                  <button className="btn ghost" onClick={() => setStayUsage(null)}>Cerrar</button>
+                </div>
+              </>
             )}
           </div>
         </div>

@@ -2,7 +2,8 @@ import { Router, type Request, type Response } from 'express'
 import {
   createDevice, listDevices, deleteDevice, rotateApiKey,
   ingestReading, ingestEvent, findDeviceByApiKey,
-  getEnergyDaily, getDeviceUsage, getKeyEvents, getGuestVsEmpty,
+  getEnergyDailySplit, getDeviceUsage, getKeyEvents,
+  getStaysUsageList, getAdminUsage, getStayUsageDetail, getKwhPrice,
   type SmartDeviceType,
 } from '../db/smarthome.js'
 
@@ -57,15 +58,28 @@ smarthomeRouter.post('/smarthome/devices/:id/rotate', (req, res) => {
 smarthomeRouter.get('/smarthome/summary', (req, res) => {
   const days = Math.min(Math.max(Number(req.query.days ?? 7) || 7, 1), 30)
   const propertyId = req.query.property_id ? Number(req.query.property_id) : undefined
+  const kwhPrice = getKwhPrice()
+  const stays = getStaysUsageList(20, propertyId)
   res.json({
     devices: listDevices().map((d) => ({
       id: d.id, name: d.name, type: d.type, room: d.room, last_seen: d.last_seen,
     })),
-    energy_daily: getEnergyDaily(days, propertyId),
+    energy_daily: getEnergyDailySplit(days, propertyId),
     device_usage: getDeviceUsage(days),
     key_events: getKeyEvents(20),
-    guest_vs_empty: getGuestVsEmpty(),
+    stays_usage: stays.map((s) => ({ ...s, cost_clp: Math.round(s.kwh * kwhPrice) })),
+    admin_usage: getAdminUsage(30, propertyId),
+    kwh_price: kwhPrice,
   })
+})
+
+/** GET /api/smarthome/stay/:reservationId — detalle de consumo de una estadía. */
+smarthomeRouter.get('/smarthome/stay/:reservationId', (req, res) => {
+  const id = Number(req.params.reservationId)
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'ID inválido' })
+  const detail = getStayUsageDetail(id, getKwhPrice())
+  if (!detail) return res.status(404).json({ error: 'Reserva no encontrada' })
+  res.json(detail)
 })
 
 /* ============ Ingest público (ESP32) ============ */
@@ -89,10 +103,14 @@ smarthomeIngestRouter.post('/ingest', (req: Request, res: Response) => {
       if (min != null && (!Number.isFinite(min) || min < 0)) {
         return res.status(400).json({ error: 'minutes_on inválido' })
       }
+      if (r?.read_at != null && typeof r.read_at !== 'string') {
+        return res.status(400).json({ error: 'read_at debe ser un timestamp ISO' })
+      }
       ingestReading(device.id, {
         kwh: kwh ?? undefined,
         minutes_on: min ?? undefined,
         state: r?.state != null ? String(r.state).slice(0, 32) : undefined,
+        read_at: r?.read_at,
       })
     }
   }
@@ -102,9 +120,13 @@ smarthomeIngestRouter.post('/ingest', (req: Request, res: Response) => {
       if (!e?.event_type?.trim()) {
         return res.status(400).json({ error: 'event_type es obligatorio en events' })
       }
+      if (e?.event_at != null && typeof e.event_at !== 'string') {
+        return res.status(400).json({ error: 'event_at debe ser un timestamp ISO' })
+      }
       ingestEvent(device.id, {
         event_type: String(e.event_type).slice(0, 32),
         detail: e.detail != null ? String(e.detail).slice(0, 200) : undefined,
+        event_at: e?.event_at,
       })
     }
   }

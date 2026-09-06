@@ -143,6 +143,9 @@ export const api = {
     const q = new URLSearchParams({ days: String(days), ...(propertyId ? { property_id: String(propertyId) } : {}) }).toString()
     return request(`/smarthome/summary?${q}`, { headers: await authHeaders() })
   },
+  async getStayUsage(reservationId: number): Promise<StayUsageDetail> {
+    return request(`/smarthome/stay/${reservationId}`, { headers: await authHeaders() })
+  },
 }
 
-import type { Reservation, NewReservation, Property, Stats, CalendarDay, GuestReservationView, Expense, NewExpense, SupermarketPurchase, SupermarketItem, SupermarketItemInput, SocialStat, NewSocialStat, FinanceAnalytics, SmartDevice, SmartDeviceType, SmartHomeSummary } from '../types'
+import type { Reservation, NewReservation, Property, Stats, CalendarDay, GuestReservationView, Expense, NewExpense, SupermarketPurchase, SupermarketItem, SupermarketItemInput, SocialStat, NewSocialStat, FinanceAnalytics, SmartDevice, SmartDeviceType, SmartHomeSummary, StayUsageDetail } from '../types'

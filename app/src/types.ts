@@ -193,10 +193,32 @@ export interface SmartDevice {
   created_at: string
 }
 
+export interface StayUsageRow {
+  reservation_id: number
+  pnr: string
+  guest_name: string
+  check_in: string
+  check_out: string
+  property_name: string
+  kwh: number
+  cost_clp: number
+}
+
 export interface SmartHomeSummary {
   devices: { id: number; name: string; type: SmartDeviceType; room: string | null; last_seen: string | null }[]
-  energy_daily: { date: string; kwh: number }[]
+  energy_daily: { date: string; kwh_guest: number; kwh_admin: number }[]
   device_usage: { name: string; type: string; minutes_on: number; kwh: number }[]
   key_events: { event_at: string; event_type: string; detail: string | null; device: string }[]
-  guest_vs_empty: { avg_kwh_with_guest: number | null; avg_kwh_empty: number | null }
+  stays_usage: StayUsageRow[]
+  admin_usage: { kwh: number; days: number; avg_kwh_day: number | null }
+  kwh_price: number
+}
+
+export interface StayUsageDetail {
+  reservation: { id: number; pnr: string; guest_name: string; check_in: string; check_out: string; property_name: string }
+  kwh: number
+  cost_clp: number
+  hourly_profile: { hour: number; kwh: number }[]
+  device_usage: { name: string; type: string; minutes_on: number; kwh: number }[]
+  key_events: { event_at: string; event_type: string; detail: string | null; device: string }[]
 }
