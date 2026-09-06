@@ -56,29 +56,28 @@ export const api = {
       headers: await authHeaders(),
     })
   },
-  /** Portal del pasajero: busca por nombre + RUT + PNR. */
-  async guestLookup(pnr: string, name: string, rut: string): Promise<GuestReservationView> {
+  /** Portal del pasajero: busca por PNR + RUT. */
+  async guestLookup(pnr: string, rut: string): Promise<GuestReservationView> {
     return request('/guest/lookup', {
       method: 'POST',
-      body: JSON.stringify({ pnr, name, rut }),
+      body: JSON.stringify({ pnr, rut }),
     })
   },
-  async guestReservation(pnr: string, name: string, rut: string): Promise<GuestReservationView> {
+  async guestReservation(pnr: string, rut: string): Promise<GuestReservationView> {
     return request('/guest/reservation', {
       method: 'POST',
-      body: JSON.stringify({ pnr, name, rut }),
+      body: JSON.stringify({ pnr, rut }),
     })
   },
   /** Check-in online: el pasajero completa email/teléfono/hora de llegada. */
   async guestCheckIn(
     pnr: string,
-    name: string,
     rut: string,
     data: { guest_email?: string; guest_phone?: string; arrival_time?: string },
   ): Promise<GuestReservationView> {
     return request('/guest/reservation', {
       method: 'PATCH',
-      body: JSON.stringify({ pnr, name, rut, ...data }),
+      body: JSON.stringify({ pnr, rut, ...data }),
     })
   },
 

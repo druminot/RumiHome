@@ -346,14 +346,14 @@ export function deleteReservation(id: number): boolean {
   return info.changes > 0
 }
 
-/** Validación del pasajero: PNR + nombre + RUT coinciden (case-insensitive en nombre). */
-export function guestLookup(pnr: string, name: string, rut: string): ReservationRow | undefined {
+/** Validación del pasajero: PNR + RUT coinciden (el nombre ya no es necesario). */
+export function guestLookup(pnr: string, rut: string): ReservationRow | undefined {
   return db
     .prepare(
       `SELECT * FROM reservations
-       WHERE UPPER(pnr) = ? AND LOWER(guest_name) = LOWER(?) AND guest_rut = ?`,
+       WHERE UPPER(pnr) = ? AND guest_rut = ?`,
     )
-    .get(pnr.toUpperCase(), name.trim(), rut.trim()) as unknown as ReservationRow | undefined
+    .get(pnr.toUpperCase(), rut.trim()) as unknown as ReservationRow | undefined
 }
 
 export interface Stats {

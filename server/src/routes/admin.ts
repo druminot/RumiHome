@@ -180,11 +180,11 @@ function guestView(r: NonNullable<ReturnType<typeof getReservationById>>) {
 export const guestRouter = Router()
 
 guestRouter.post('/lookup', (req: Request, res: Response) => {
-  const { pnr, name, rut } = req.body ?? {}
-  if (!pnr?.trim() || !name?.trim() || !rut?.trim()) {
-    return res.status(400).json({ error: 'PNR, nombre y RUT son obligatorios' })
+  const { pnr, rut } = req.body ?? {}
+  if (!pnr?.trim() || !rut?.trim()) {
+    return res.status(400).json({ error: 'PNR y RUT son obligatorios' })
   }
-  const reservation = guestLookup(String(pnr), String(name), String(rut))
+  const reservation = guestLookup(String(pnr), String(rut))
   if (!reservation) {
     // 404 genérico: no revelar si el PNR existe
     return res.status(404).json({ error: 'Reserva no encontrada con esos datos' })
@@ -194,11 +194,11 @@ guestRouter.post('/lookup', (req: Request, res: Response) => {
 
 /** POST /api/guest/reservation — re-obtener reserva autenticada por los 3 datos. */
 guestRouter.post('/reservation', (req: Request, res: Response) => {
-  const { pnr, name, rut } = req.body ?? {}
-  if (!pnr?.trim() || !name?.trim() || !rut?.trim()) {
-    return res.status(400).json({ error: 'PNR, nombre y RUT son obligatorios' })
+  const { pnr, rut } = req.body ?? {}
+  if (!pnr?.trim() || !rut?.trim()) {
+    return res.status(400).json({ error: 'PNR y RUT son obligatorios' })
   }
-  const reservation = guestLookup(String(pnr), String(name), String(rut))
+  const reservation = guestLookup(String(pnr), String(rut))
   if (!reservation) {
     return res.status(404).json({ error: 'Reserva no encontrada con esos datos' })
   }
@@ -207,11 +207,11 @@ guestRouter.post('/reservation', (req: Request, res: Response) => {
 
 /** PATCH /api/guest/reservation — check-in online: el pasajero completa sus datos. */
 guestRouter.patch('/reservation', (req: Request, res: Response) => {
-  const { pnr, name, rut, guest_email, guest_phone, arrival_time } = req.body ?? {}
-  if (!pnr?.trim() || !name?.trim() || !rut?.trim()) {
-    return res.status(400).json({ error: 'PNR, nombre y RUT son obligatorios' })
+  const { pnr, rut, guest_email, guest_phone, arrival_time } = req.body ?? {}
+  if (!pnr?.trim() || !rut?.trim()) {
+    return res.status(400).json({ error: 'PNR y RUT son obligatorios' })
   }
-  const reservation = guestLookup(String(pnr), String(name), String(rut))
+  const reservation = guestLookup(String(pnr), String(rut))
   if (!reservation) {
     return res.status(404).json({ error: 'Reserva no encontrada con esos datos' })
   }

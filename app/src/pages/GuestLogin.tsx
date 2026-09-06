@@ -7,7 +7,6 @@ const GUEST_PATH = import.meta.env.VITE_GUEST_PATH ?? '/reserva'
 export default function GuestLoginPage() {
   const navigate = useNavigate()
   const [pnr, setPnr] = useState('')
-  const [name, setName] = useState('')
   const [rut, setRut] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -17,12 +16,12 @@ export default function GuestLoginPage() {
     setError(null)
     setLoading(true)
     try {
-      const r = await api.guestLookup(pnr.trim().toUpperCase(), name.trim(), rut.trim())
+      const r = await api.guestLookup(pnr.trim().toUpperCase(), rut.trim())
       navigate(`${GUEST_PATH}/${r.pnr}`, {
-        state: { reservation: r, name: name.trim(), rut: rut.trim() },
+        state: { reservation: r, rut: rut.trim() },
       })
     } catch (err) {
-      setError('No encontramos una reserva con esos datos. Verifica PNR, nombre y RUT.')
+      setError('No encontramos una reserva con esos datos. Verifica el PNR y el RUT.')
     } finally {
       setLoading(false)
     }
@@ -44,16 +43,6 @@ export default function GuestLoginPage() {
               placeholder="RUMI-XXXXXX"
               value={pnr}
               onChange={(e) => setPnr(e.target.value.toUpperCase())}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="g-name">Nombre</label>
-            <input
-              id="g-name"
-              required
-              autoComplete="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
             />
           </div>
           <div className="field">

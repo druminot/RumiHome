@@ -23,14 +23,13 @@ function fmtCLP(n: number | null | undefined): string {
 
 interface GuestState {
   pnr: string
-  name: string
   rut: string
 }
 
 export default function GuestReservationPage() {
   const { pnr: pnrParam } = useParams<{ pnr: string }>()
   const location = useLocation() as {
-    state: { reservation: GuestReservationView; name: string; rut: string } | null
+    state: { reservation: GuestReservationView; rut: string } | null
   }
   const [reservation, setReservation] = useState<GuestReservationView | null>(
     location.state?.reservation ?? null,
@@ -39,13 +38,13 @@ export default function GuestReservationPage() {
   const [loading, setLoading] = useState(!location.state?.reservation)
 
   const creds: GuestState | null = location.state
-    ? { pnr: pnrParam ?? location.state.reservation.pnr, name: location.state.name, rut: location.state.rut }
+    ? { pnr: pnrParam ?? location.state.reservation.pnr, rut: location.state.rut }
     : null
 
   useEffect(() => {
     if (!creds || !creds.pnr) return
     api
-      .guestReservation(creds.pnr, creds.name, creds.rut)
+      .guestReservation(creds.pnr, creds.rut)
       .then(setReservation)
       .catch(() => setError('No se pudo cargar la reserva.'))
       .finally(() => setLoading(false))
@@ -103,7 +102,7 @@ function ReservationCard({
     setErr(null)
     setSaving(true)
     try {
-      const updated = await api.guestCheckIn(creds.pnr, creds.name, creds.rut, {
+      const updated = await api.guestCheckIn(creds.pnr, creds.rut, {
         guest_email: email.trim() || undefined,
         guest_phone: phone.trim() || undefined,
         arrival_time: arrival.trim() || undefined,
