@@ -8,9 +8,9 @@
   --wood: #DCC4A1;
   --gray: #d2d2d7;
   --muted: #86868b;
-  --accent: #B3542D;
-  --accent-cta: #B3542D;
-  --accent-dark: #99431f;
+  --accent: #FF385C;
+  --accent-cta: #FF385C;
+  --accent-dark: #E00B41;
   --sage: #8CA18B;
   --sage-deep: #5F7A5F;
   --white: #ffffff;
@@ -120,7 +120,7 @@ a { color: var(--accent-cta); }
 }
 .btn.small { padding: 0.45rem 1.1rem; font-size: 0.9rem; min-height: 40px; }
 .btn.danger { background: var(--error); }
-.btn.danger:hover { background: #93311f; }
+.btn.danger:hover { background: #a02c12; }
 
 /* ---------- Alerts ---------- */
 .alert {
@@ -481,8 +481,8 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
 }
 .subtab:hover { color: #222222; }
 .subtab.active {
-  color: #B3542D;
-  border-bottom-color: #B3542D;
+  color: #FF385C;
+  border-bottom-color: #FF385C;
 }
 
 /* ============ Dashboard ============ */
@@ -508,7 +508,7 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
 }
 .stat-card.neto span { font-size: 1.6rem; }
 .stat-card span.pos { color: #6B8767; }
-.stat-card span.neg { color: #B3542D; }
+.stat-card span.neg { color: #FF385C; }
 .cat-list {
   list-style: none;
   padding: 0;
@@ -635,7 +635,7 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
   cursor: default;
 }
 .hour-bar-fill {
-  background: #B3542D;
+  background: #FF385C;
   border-radius: 3px 3px 0 0;
   min-height: 2px;
   transition: opacity .15s;
@@ -716,7 +716,7 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
 .device-seen { color: #86868b; font-size: .68rem; white-space: nowrap; }
 
 .stat-card.accent {
-  border-left: 3px solid #B3542D;
+  border-left: 3px solid #FF385C;
 }
 
 .usage-bar {
@@ -729,7 +729,7 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
 .usage-bar-fill {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #5ac8fa, #B3542D);
+  background: linear-gradient(90deg, #5ac8fa, #FF385C);
   border-radius: 50px;
   transition: width .3s ease;
 }
