@@ -111,13 +111,13 @@ export function findDeviceByApiKey(apiKey: string): SmartDeviceRow | undefined {
 export function ingestReading(deviceId: number, data: SmartReadingInput): void {
   db.prepare('INSERT INTO smart_readings (device_id, kwh, minutes_on, state) VALUES (?, ?, ?, ?)')
     .run(deviceId, data.kwh ?? null, data.minutes_on ?? null, data.state ?? null)
-  db.prepare('UPDATE smart_devices SET last_seen = datetime("now") WHERE id = ?').run(deviceId)
+  db.prepare("UPDATE smart_devices SET last_seen = datetime('now') WHERE id = ?").run(deviceId)
 }
 
 export function ingestEvent(deviceId: number, data: SmartEventInput): void {
   db.prepare('INSERT INTO smart_events (device_id, event_type, detail) VALUES (?, ?, ?)')
     .run(deviceId, data.event_type, data.detail?.trim() || null)
-  db.prepare('UPDATE smart_devices SET last_seen = datetime("now") WHERE id = ?').run(deviceId)
+  db.prepare("UPDATE smart_devices SET last_seen = datetime('now') WHERE id = ?").run(deviceId)
 }
 
 /* ============ Analytics ============ */
