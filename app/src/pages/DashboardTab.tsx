@@ -70,45 +70,90 @@ function IncomeChart({ series }: { series: FinanceAnalytics['monthly_series'] })
   )
 }
 
-/** Barras apiladas: energía diaria huésped (terracota) vs admin (gris). */
+/** Barras apiladas con tooltip nativo, eje Y y promedio. */
 function EnergyChart({ data }: { data: SmartHomeSummary['energy_daily'] }) {
   if (data.length === 0) return null
-  const W = 560, H = 180, PAD = 30
-  const max = Math.max(...data.map((d) => d.kwh_guest + d.kwh_admin), 1)
-  const step = (W - PAD * 2) / Math.max(data.length, 1)
-  const bw = Math.min(step * 0.6, 36)
+  const W = 720, H = 220, PAD = 44, PADL = 34
+  const totals = data.map((d) => d.kwh_guest + d.kwh_admin)
+  const max = Math.max(...totals, 1)
+  const step = (W - PADL - PAD) / Math.max(data.length, 1)
+  const bw = Math.min(step * 0.62, 40)
+  const chartH = H - PADL - 24
+  const avg = totals.reduce((s, t) => s + t, 0) / data.length
+  const avgY = PADL + chartH - (avg / max) * chartH
+  const niceMax = Math.ceil(max * 1.15)
   return (
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Energía diaria por huésped y admin" className="chart">
-      {[0.5, 1].map((f) => (
-        <line key={f} x1={PAD} x2={W - PAD} y1={H - PAD - (H - PAD * 2) * f} y2={H - PAD - (H - PAD * 2) * f}
-          stroke="#E8E4DD" strokeWidth="1" />
-      ))}
+      {/* Eje Y */}
+      {[0, 0.25, 0.5, 0.75, 1].map((f) => {
+        const y = PADL + chartH - f * chartH
+        return (
+          <g key={f}>
+            <line x1={PADL} x2={W - PAD} y1={y} y2={y} stroke="#E8E4DD" strokeWidth="1" />
+            <text x={PADL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#A8A8A8">
+              {(niceMax * f).toFixed(1)}
+            </text>
+          </g>
+        )
+      })}
+      {/* Línea de promedio */}
+      <line x1={PADL} x2={W - PAD} y1={avgY} y2={avgY} stroke="#8CA18B" strokeWidth="1.5" strokeDasharray="5 4" />
+      <text x={W - PAD - 2} y={avgY - 5} textAnchor="end" fontSize="9" fill="#6B8767" fontWeight="600">
+        prom {avg.toFixed(1)} kWh
+      </text>
       {data.map((d, i) => {
-        const x = PAD + i * step + step / 2
-        const hG = (d.kwh_guest / max) * (H - PAD * 2)
-        const hA = (d.kwh_admin / max) * (H - PAD * 2)
+        const x = PADL + i * step + step / 2
+        const hG = (d.kwh_guest / max) * chartH
+        const hA = (d.kwh_admin / max) * chartH
         const total = d.kwh_guest + d.kwh_admin
         return (
           <g key={d.date}>
-            {d.kwh_admin > 0 && <rect x={x - bw / 2} y={H - PAD - hA} width={bw} height={Math.max(hA, 1)} rx="3" fill="#A8A8A8" />}
-            {d.kwh_guest > 0 && <rect x={x - bw / 2} y={H - PAD - hA - hG} width={bw} height={Math.max(hG, 1)} rx="3" fill="#C16A54" />}
-            <text x={x} y={H - PAD - hA - hG - 6} textAnchor="middle" fontSize="10" fill="#4a463f" fontWeight="600">
+            <title>{`${d.date}: ${total.toFixed(1)} kWh total (huésped ${d.kwh_guest.toFixed(1)}, admin ${d.kwh_admin.toFixed(1)})`}</title>
+            {d.kwh_admin > 0 && <rect x={x - bw / 2} y={PADL + chartH - hA} width={bw} height={Math.max(hA, 1)} rx="3" fill="#A8A8A8" />}
+            {d.kwh_guest > 0 && <rect x={x - bw / 2} y={PADL + chartH - hA - hG} width={bw} height={Math.max(hG, 1)} rx="3" fill="#C16A54" />}
+            <text x={x} y={PADL + chartH - hA - hG - 6} textAnchor="middle" fontSize="9.5" fill="#4a463f" fontWeight="600">
               {total > 0 ? total.toFixed(1) : ''}
             </text>
-            <text x={x} y={H - 8} textAnchor="middle" fontSize="10" fill="#A8A8A8">
+            <text x={x} y={H - 8} textAnchor="middle" fontSize="9.5" fill="#A8A8A8">
               {d.date.slice(8)}
             </text>
           </g>
         )
       })}
       <g>
-        <rect x={W - 190} y={6} width="10" height="10" rx="2" fill="#C16A54" />
-        <text x={W - 175} y={15} fontSize="11" fill="#4a463f">Huésped</text>
-        <rect x={W - 110} y={6} width="10" height="10" rx="2" fill="#A8A8A8" />
-        <text x={W - 95} y={15} fontSize="11" fill="#4a463f">Admin</text>
+        <rect x={PADL} y={6} width="10" height="10" rx="2" fill="#C16A54" />
+        <text x={PADL + 14} y={15} fontSize="10.5" fill="#4a463f">Huésped</text>
+        <rect x={PADL + 78} y={6} width="10" height="10" rx="2" fill="#A8A8A8" />
+        <text x={PADL + 92} y={15} fontSize="10.5" fill="#4a463f">Admin</text>
       </g>
     </svg>
   )
+}
+
+/** Barra horizontal proporcional para horas de uso. */
+function UsageBar({ minutes, maxMinutes }: { minutes: number; maxMinutes: number }) {
+  const pct = maxMinutes > 0 ? Math.min((minutes / maxMinutes) * 100, 100) : 0
+  return <span className="usage-bar"><span className="usage-bar-fill" style={{ width: `${pct}%` }} /></span>
+}
+
+const DEVICE_ICON: Record<string, string> = {
+  luz: '💡',
+  llave: '🔑',
+  presencia: '👀',
+  calefaccion: '🔥',
+  tv: '📺',
+  energia: '⚡',
+}
+
+function lastSeenLabel(last: string | null): string {
+  if (!last) return 'sin señal'
+  const diff = Date.now() - Date.parse(last.replace(' ', 'T') + 'Z')
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'ahora'
+  if (mins < 60) return `hace ${mins} min`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `hace ${hours} h`
+  return `hace ${Math.floor(hours / 24)} d`
 }
 
 export default function DashboardTab({ properties }: { properties: Property[] }) {
@@ -118,13 +163,14 @@ export default function DashboardTab({ properties }: { properties: Property[] })
   const [fin, setFin] = useState<FinanceAnalytics | null>(null)
   const [smart, setSmart] = useState<SmartHomeSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [smartDays, setSmartDays] = useState(7)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const [f, s] = await Promise.all([
         api.getFinanceAnalytics(month, propertyId),
-        api.getSmartHomeSummary(7, propertyId),
+        api.getSmartHomeSummary(smartDays, propertyId),
       ])
       setFin(f)
       setSmart(s)
@@ -133,7 +179,7 @@ export default function DashboardTab({ properties }: { properties: Property[] })
     } finally {
       setLoading(false)
     }
-  }, [month, propertyId])
+  }, [month, propertyId, smartDays])
 
   useEffect(() => { load() }, [load])
 
@@ -260,36 +306,84 @@ export default function DashboardTab({ properties }: { properties: Property[] })
       {/* Domótica */}
       {smart && (
         <section className="dashboard-section">
-          <h3>Domótica — últimos 7 días</h3>
+          <div className="section-head">
+            <h3>Domótica</h3>
+            <div className="pill-group" role="group" aria-label="Período domótica">
+              {[7, 14, 30].map((d) => (
+                <button key={d} className={`pill ${smartDays === d ? 'active' : ''}`} onClick={() => setSmartDays(d)}>
+                  {d} días
+                </button>
+              ))}
+            </div>
+          </div>
+
           {smart.devices.length === 0 ? (
             <p className="hint">Sin dispositivos registrados. Agrégalos desde la pestaña Gastos &amp; Redes → Domótica.</p>
           ) : (
             <>
-              <div className="stats-grid smarthome-grid">
-                <div className="stat-card">
-                  <b>Dispositivos activos</b>
-                  <span>{smart.devices.length}</span>
-                </div>
-                <div className="stat-card">
-                  <b>kWh huéspedes (7d)</b>
-                  <span>{smart.energy_daily.reduce((s, d) => s + d.kwh_guest, 0).toFixed(1)}</span>
-                </div>
-                <div className="stat-card">
-                  <b>kWh admin (30d)</b>
-                  <span>{smart.admin_usage.kwh.toFixed(1)}</span>
-                  <span className="stat-small">
-                    {smart.admin_usage.avg_kwh_day != null ? `${smart.admin_usage.avg_kwh_day.toFixed(1)}/día` : ''}
-                  </span>
-                </div>
-                <div className="stat-card">
-                  <b>Precio kWh</b>
-                  <span className="stat-small">{fmtCLP(smart.kwh_price)}/kWh</span>
-                </div>
+              {/* Tarjetas de dispositivos en línea */}
+              <div className="device-cards">
+                {smart.devices.map((d) => {
+                  const isOn = d.state === 'on' || d.state === 'true'
+                  return (
+                    <div key={d.id} className={`device-card ${isOn ? 'on' : ''}`}>
+                      <span className="device-emoji">{DEVICE_ICON[d.type] ?? '🔌'}</span>
+                      <div className="device-info">
+                        <b>{d.name}</b>
+                        <small>{d.room ?? DEVICE_TYPE_LABEL[d.type] ?? d.type}</small>
+                      </div>
+                      <span className={`device-state ${isOn ? 'on' : ''}`}>{isOn ? '● ON' : '●'}</span>
+                      <small className="device-seen">{lastSeenLabel(d.last_seen)}</small>
+                    </div>
+                  )
+                })}
               </div>
+
+              {/* KPIs comparativos */}
+              {(() => {
+                const kwhGuest = smart.energy_daily.reduce((s, d) => s + d.kwh_guest, 0)
+                const kwhAdmin = smart.admin_usage.kwh
+                const costGuest = kwhGuest * smart.kwh_price
+                const costAdmin = kwhAdmin * smart.kwh_price
+                const total = kwhGuest + kwhAdmin
+                const guestPct = total > 0 ? Math.round((kwhGuest / total) * 100) : 0
+                const dayTotals = smart.energy_daily.map((d) => d.kwh_guest + d.kwh_admin)
+                const peak = dayTotals.length ? Math.max(...dayTotals) : 0
+                return (
+                  <div className="stats-grid smarthome-grid">
+                    <div className="stat-card accent">
+                      <b>Huéspedes ({smartDays}d)</b>
+                      <span>{kwhGuest.toFixed(1)} kWh</span>
+                      <span className="stat-small">{fmtCLP(Math.round(costGuest))} · {guestPct}% del total</span>
+                    </div>
+                    <div className="stat-card">
+                      <b>Admin ({smartDays}d)</b>
+                      <span>{kwhAdmin.toFixed(1)} kWh</span>
+                      <span className="stat-small">
+                        {fmtCLP(Math.round(costAdmin))}
+                        {smart.admin_usage.avg_kwh_day != null ? ` · ${smart.admin_usage.avg_kwh_day.toFixed(1)}/día` : ''}
+                      </span>
+                    </div>
+                    <div className="stat-card">
+                      <b>Pico diario</b>
+                      <span>{peak > 0 ? peak.toFixed(1) : '—'} kWh</span>
+                      <span className="stat-small">
+                        {smart.admin_usage.avg_kwh_day != null && peak > 0
+                          ? `${(peak / smart.admin_usage.avg_kwh_day).toFixed(1)}× consumo admin`
+                          : ''}
+                      </span>
+                    </div>
+                    <div className="stat-card">
+                      <b>Tarifa</b>
+                      <span className="stat-small">{fmtCLP(smart.kwh_price)}/kWh</span>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {smart.energy_daily.length > 0 && (
                 <div className="dashboard-section-inner">
-                  <h4>Energía diaria (huésped vs admin)</h4>
+                  <h4>Energía diaria — huésped vs admin</h4>
                   <EnergyChart data={smart.energy_daily} />
                 </div>
               )}
@@ -318,40 +412,51 @@ export default function DashboardTab({ properties }: { properties: Property[] })
               )}
 
               <div className="dashboard-cols">
+                {/* Uso por dispositivo con barras */}
                 <div>
-                  <h4>Uso por dispositivo (7d)</h4>
+                  <h4>Uso por dispositivo ({smartDays}d)</h4>
                   {smart.device_usage.length === 0 ? (
                     <p className="hint">Sin lecturas aún.</p>
                   ) : (
-                    <table className="mini-table">
-                      <thead>
-                        <tr><th>Dispositivo</th><th>Tipo</th><th>Horas on</th></tr>
-                      </thead>
-                      <tbody>
-                        {smart.device_usage.map((d) => (
-                          <tr key={d.name}>
-                            <td>{d.name}</td>
-                            <td>{DEVICE_TYPE_LABEL[d.type] ?? d.type}</td>
-                            <td>{d.minutes_on > 0 ? (d.minutes_on / 60).toFixed(1) : '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    (() => {
+                      const maxMin = Math.max(...smart.device_usage.map((d) => d.minutes_on), 1)
+                      return (
+                        <ul className="device-usage-list">
+                          {smart.device_usage.map((d) => (
+                            <li key={d.name}>
+                              <div className="usage-head">
+                                <span>{DEVICE_ICON[d.type] ?? '🔌'} <b>{d.name}</b></span>
+                                <span>{d.minutes_on > 0 ? `${(d.minutes_on / 60).toFixed(1)} h` : '—'}</span>
+                              </div>
+                              <UsageBar minutes={d.minutes_on} maxMinutes={maxMin} />
+                            </li>
+                          ))}
+                        </ul>
+                      )
+                    })()
                   )}
                 </div>
+
+                {/* Eventos de llave */}
                 <div>
-                  <h4>Eventos de llave (recientes)</h4>
+                  <h4>Eventos de llave</h4>
                   {smart.key_events.length === 0 ? (
                     <p className="hint">Sin eventos de llave registrados.</p>
                   ) : (
                     <ul className="event-list">
-                      {smart.key_events.map((e, i) => (
-                        <li key={i}>
-                          <span className={`key-dot ${e.event_type.includes('open') ? 'open' : ''}`} />
-                          <span>{e.event_type} {e.detail ? `· ${e.detail}` : ''}</span>
-                          <small>{e.event_at.slice(0, 16).replace('T', ' ')}</small>
-                        </li>
-                      ))}
+                      {smart.key_events.map((e, i) => {
+                        const isOpen = e.event_type.includes('open')
+                        return (
+                          <li key={i}>
+                            <span className={`key-badge ${isOpen ? 'open' : ''}`}>{isOpen ? '🔓' : '🔒'}</span>
+                            <span>
+                              {isOpen ? 'Apertura' : 'Cierre'} {e.detail ? <span className="muted">· {e.detail}</span> : ''}
+                              <br />
+                              <small className="muted">{e.event_at.slice(0, 16).replace('T', ' ')} · {e.device}</small>
+                            </span>
+                          </li>
+                        )
+                      })}
                     </ul>
                   )}
                 </div>

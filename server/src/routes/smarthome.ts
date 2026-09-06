@@ -3,7 +3,7 @@ import {
   createDevice, listDevices, deleteDevice, rotateApiKey,
   ingestReading, ingestEvent, findDeviceByApiKey,
   getEnergyDailySplit, getDeviceUsage, getKeyEvents,
-  getStaysUsageList, getAdminUsage, getStayUsageDetail, getKwhPrice,
+  getStaysUsageList, getAdminUsage, getStayUsageDetail, getKwhPrice, getDeviceStates,
   type SmartDeviceType,
 } from '../db/smarthome.js'
 
@@ -60,15 +60,17 @@ smarthomeRouter.get('/smarthome/summary', (req, res) => {
   const propertyId = req.query.property_id ? Number(req.query.property_id) : undefined
   const kwhPrice = getKwhPrice()
   const stays = getStaysUsageList(20, propertyId)
+  const states = getDeviceStates()
   res.json({
     devices: listDevices().map((d) => ({
       id: d.id, name: d.name, type: d.type, room: d.room, last_seen: d.last_seen,
+      state: states.get(d.id) ?? null,
     })),
     energy_daily: getEnergyDailySplit(days, propertyId),
     device_usage: getDeviceUsage(days),
     key_events: getKeyEvents(20),
     stays_usage: stays.map((s) => ({ ...s, cost_clp: Math.round(s.kwh * kwhPrice) })),
-    admin_usage: getAdminUsage(30, propertyId),
+    admin_usage: getAdminUsage(days, propertyId),
     kwh_price: kwhPrice,
   })
 })

@@ -205,7 +205,7 @@ export interface StayUsageRow {
 }
 
 export interface SmartHomeSummary {
-  devices: { id: number; name: string; type: SmartDeviceType; room: string | null; last_seen: string | null }[]
+  devices: { id: number; name: string; type: SmartDeviceType; room: string | null; last_seen: string | null; state: string | null }[]
   energy_daily: { date: string; kwh_guest: number; kwh_admin: number }[]
   device_usage: { name: string; type: string; minutes_on: number; kwh: number }[]
   key_events: { event_at: string; event_type: string; detail: string | null; device: string }[]

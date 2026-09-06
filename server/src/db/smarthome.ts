@@ -316,6 +316,18 @@ export function getKwhPrice(): number {
   return Number.isFinite(p) && p > 0 ? p : 160
 }
 
+/** Estado actual por dispositivo: último state reportado (ej. luz on/off). */
+export function getDeviceStates(): Map<number, string | null> {
+  const rows = db.prepare(`
+    SELECT d.id,
+      (SELECT r.state FROM smart_readings r
+       WHERE r.device_id = d.id AND r.state IS NOT NULL
+       ORDER BY r.read_at DESC LIMIT 1) AS state
+    FROM smart_devices d WHERE d.active = 1
+  `).all() as unknown as { id: number; state: string | null }[]
+  return new Map(rows.map((r) => [r.id, r.state]))
+}
+
 /** Uso por dispositivo: minutos encendido y kWh acumulado (últimos N días). */
 export function getDeviceUsage(days = 7): { name: string; type: string; minutes_on: number; kwh: number }[] {
   return db.prepare(`
