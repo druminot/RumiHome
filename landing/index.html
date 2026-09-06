@@ -54,7 +54,7 @@
       border-radius: 6px;
     }
 
-    .container { max-width: 1080px; margin: 0 auto; padding: 0 22px; }
+    .container { max-width: 1440px; margin: 0 auto; padding: 0 max(22px, 2.5vw); }
     section { scroll-margin-top: 7rem; }
 
     /* ===== Nav global (Apple: 12px, blur, 48px alto) ===== */
@@ -62,7 +62,7 @@
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       height: 48px;
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 max(22px, calc((100vw - 1080px) / 2));
+      padding: 0 max(22px, 2.5vw);
       background: rgba(250, 249, 246, 0.78);
       backdrop-filter: saturate(180%) blur(20px);
       -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -159,7 +159,7 @@
     /* ===== Tiles 2-up (Apple Store: gap 12px, radius 18px) ===== */
     .tiles-2up {
       display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
-      padding: 0 22px 22px; max-width: 1080px; margin: 0 auto;
+      padding: 0 max(22px, 2.5vw) max(22px, 2.5vw); max-width: 1440px; margin: 0 auto;
     }
     .tile {
       border-radius: var(--radius);
@@ -217,7 +217,7 @@
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: var(--gap);
-      max-width: 1080px; margin: 0 auto;
+      max-width: 1440px; margin: 0 auto;
     }
     .card {
       background: var(--white);
@@ -243,7 +243,7 @@
     /* ===== Galería (Apple: tiles grandes 2-up) ===== */
     .gallery {
       display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
-      max-width: 1080px; margin: 0 auto;
+      max-width: 1440px; margin: 0 auto;
     }
     .ph {
       aspect-ratio: 16 / 10;
@@ -264,7 +264,7 @@
     .ph:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(29,29,31,0.10); }
 
     /* ===== CTA oscuro (Apple: tile negro con pill blanco) ===== */
-    .cta-wrap { padding: 22px; max-width: 1080px; margin: 0 auto; }
+    .cta-wrap { padding: max(22px, 2.5vw); max-width: 1440px; margin: 0 auto; }
     .cta {
       background: linear-gradient(180deg, #2a2724 0%, #1d1d1f 100%);
       border-radius: var(--radius);
@@ -298,7 +298,7 @@
       font-size: 12px; color: var(--text-soft);
     }
     .foot-grid {
-      max-width: 1080px; margin: 0 auto; padding: 40px 22px 20px;
+      max-width: 1440px; margin: 0 auto; padding: 40px max(22px, 2.5vw) 20px;
       display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px;
     }
     .foot-grid h4 {
@@ -308,7 +308,7 @@
     .foot-grid p, .foot-grid a { font-size: 12px; color: var(--text-soft); text-decoration: none; line-height: 1.8; }
     .foot-grid a:hover { color: var(--dark); text-decoration: underline; }
     .foot-legal {
-      max-width: 1080px; margin: 0 auto; padding: 0 22px 32px;
+      max-width: 1440px; margin: 0 auto; padding: 0 max(22px, 2.5vw) 32px;
       border-top: 1px solid rgba(29,29,31,0.08);
       padding-top: 16px;
     }
