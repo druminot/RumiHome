@@ -63,8 +63,12 @@ export async function verifyIdToken(token: string): Promise<DecodedToken> {
     const header = decodeHeader(token)
     const key = header.kid ? s.keys.get(header.kid) : [...s.keys.values()][0]
     if (!key) throw new Error('kid desconocido')
+    // Firebase emite dos issuers según el endpoint: aceptamos ambos
     const { payload } = await jwtVerify(token, key, {
-      issuer: `https://securetoken.google.com/${PROJECT_ID}`,
+      issuer: [
+        `https://securetoken.google.com/${PROJECT_ID}`,
+        'https://identitytoolkit.google.com/',
+      ],
       audience: PROJECT_ID,
     } satisfies JWTVerifyOptions)
     return { email: payload.email as string | undefined, sub: payload.sub as string }

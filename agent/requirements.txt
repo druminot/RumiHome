@@ -1,0 +1,4 @@
+langchain>=1.4
+langchain-openai>=1.0
+httpx>=0.27
+python-telegram-bot>=22.0
