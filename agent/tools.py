@@ -69,8 +69,24 @@ def crear_reserva(
     guests: int = 2,
     price_per_night: int | None = None,
 ) -> str:
-    """Crea una reserva nueva. Fechas en formato YYYY-MM-DD. price_per_night opcional en CLP.
-    Devuelve el PNR generado y la clave de puerta de 8 dígitos."""
+    """Crea una reserva nueva. Fechas en formato YYYY-MM-DD, SIEMPRE con el año actual o futuro (nunca años pasados).
+    Si el usuario no especifica año, usa el año vigente (o el siguiente si el mes ya pasó).
+    price_per_night opcional en CLP. Devuelve el PNR generado y la clave de puerta de 8 dígitos."""
+    from datetime import date
+
+    # Guard: rechazar fechas en el pasado (error típico del LLM sin año explícito)
+    hoy = date.today()
+    try:
+        ci = date.fromisoformat(check_in)
+        co = date.fromisoformat(check_out)
+    except ValueError:
+        return f"Error: fechas inválidas ({check_in} → {check_out}). Usa formato YYYY-MM-DD."
+    if ci < hoy or co <= ci:
+        return (
+            f"Error: la fecha de check-in ({check_in}) está en el pasado o el check-out no es posterior. "
+            f"Hoy es {hoy.isoformat()}. Pide al anfitrión confirmar las fechas correctas (¿quería decir {hoy.year}-{ci.month:02d}-{ci.day:02d}?)."
+        )
+
     payload = {
         "property_id": 1,
         "guest_name": guest_name,

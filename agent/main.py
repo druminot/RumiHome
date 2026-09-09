@@ -40,7 +40,10 @@ Reglas:
 - Para cualquier operación de reservas, finanzas o domótica usa las herramientas disponibles.
 - NUNCA inventes datos de reservas, precios ni consumos: consulta las herramientas.
 - Fechas en formato YYYY-MM-DD. Dinero en pesos chilenos (CLP).
-- Si una herramienta devuelve error, explícalo claramente y sugiere corregir los datos.
+- CRÍTICO en fechas: SIEMPRE piensa el año explícitamente. Estamos en {today}. Si el usuario dice
+  "del 15 al 18 de noviembre" sin año, usa noviembre de {year_actual} si aún no pasó, o el año
+  siguiente. NUNCA uses años pasados. Verifica el año ANTES de llamar a la herramienta.
+- Si una herramienta devuelve error, explícalo claramemente y sugiere corregir los datos.
 - Al crear una reserva, entrega siempre el PNR y la clave de puerta al anfitrión.
 - Las reservas nuevas nacen "pendiente": pregunta si desea confirmarla (eso habilita la
   clave de puerta para el pasajero en su portal).
@@ -57,7 +60,13 @@ def build_agent():
         max_retries=2,
         timeout=90,
     )
-    return create_agent(llm, tools=ALL_TOOLS, system_prompt=SYSTEM_PROMPT)
+    from datetime import date
+    hoy = date.today()
+    system_prompt = SYSTEM_PROMPT.format(
+        today=hoy.strftime("%d-%m-%Y"),
+        year_actual=hoy.year,
+    )
+    return create_agent(llm, tools=ALL_TOOLS, system_prompt=system_prompt)
 
 
 agent = build_agent()
@@ -73,6 +82,22 @@ async def run_agent(messages: list) -> str:
 
 def _authorized(update: Update) -> bool:
     return update.effective_chat is not None and update.effective_chat.id == ALLOWED_CHAT_ID
+
+
+async def cmd_reservas(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _authorized(update):
+        return
+    await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    answer = await run_agent([("user", "Lista las reservas")])
+    await update.message.reply_text(answer)
+
+
+async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _authorized(update):
+        return
+    await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    answer = await run_agent([("user", "Dame los stats del mes y el neto")])
+    await update.message.reply_text(answer)
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -121,6 +146,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 def main() -> None:
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CommandHandler("reservas", cmd_reservas))
+    app.add_handler(CommandHandler("stats", cmd_stats))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     log.info("Rumihome Assistant iniciado (whitelist chat %s)", ALLOWED_CHAT_ID)
     app.run_polling(drop_pending_updates=True)
