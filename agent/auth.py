@@ -9,8 +9,12 @@ import threading
 import httpx
 
 API_KEY = "AIzaSyCpuL_aoKkogaWtkhPKsnWRw68FP5J5ecg"
-SIGNUP_URL = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}"
+# Importante: la API key va en el header X-goog-api-key, NO como query param.
+# El formato legacy (?key=) ahora devuelve tokens de sesión (iss identitytoolkit, kid corto)
+# que el backend no puede verificar.
+SIGNUP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
 REFRESH_URL = f"https://securetoken.googleapis.com/v1/token?key={API_KEY}"
+_headers = {"X-goog-api-key": API_KEY}
 
 _email: str = ""
 _password: str = ""
@@ -30,6 +34,7 @@ def _login(client: httpx.Client) -> tuple[str, str, float]:
     res = client.post(
         SIGNUP_URL,
         json={"email": _email, "password": _password, "returnSecureToken": True},
+        headers=_headers,
         timeout=15,
     )
     res.raise_for_status()
