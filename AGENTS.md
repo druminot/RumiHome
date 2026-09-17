@@ -62,6 +62,43 @@ agent/
 
 Cualquier agente IA (opencode u otro) que trabaje en este repo **NO debe iniciar ninguna tarea del backlog sin permiso explícito de Daniel**: pedir confirmación indicando la tarea específica y esperar su OK antes de escribir código para ella.
 
+## Entorno RR (staging espejo + agentes dev aislados)
+
+RumiHome tiene un segundo entorno tipo profesional para desarrollar features con agentes:
+
+```
+@devrumunotbot (Telegram, solo chat de Daniel)
+   → opencode headless en /opt/rumihome-rr (branch rr)
+   → agentes: pm · supervisor · ux · frontend · backend · qa
+   → deploy staging: rumihome.io/rr/ (landing + app + api + DB copia)
+   → Daniel revisa → "APROBAR" → scripts/promote.sh → PROD
+```
+
+### Roles y prompts de los agentes dev
+
+- **pm** — clarifica la feature, la descompone en tareas (`.rr/plan.md`), NO codea. **Monitoreo rotativo cada 5 min**: revisa el trabajo de un agente, 5 min después otro, hasta dar la vuelta; si detecta desviación avisa al supervisor.
+- **supervisor** — SOLO audita que el grupo siga la línea del pedido. Si detecta desvío: crea `.rr/HALT` (todos los agentes se detienen al verlo), redacta informe y el bot lo envía a Daniel por Telegram. Solo Daniel levanta el HALT con `REANUDAR`.
+- **ux** — genera spec de UI (`.rr/ux-<feature>.md`) desde `styles.css` (fuente de verdad del diseño) ANTES de codificar; revisión visual del staging DESPUÉS del deploy. Gate doble.
+- **frontend** — implementa en `app/` siguiendo la spec UX; `npm run build` debe pasar.
+- **backend** — implementa en `server/`; prueba contra el SQLite de staging; nunca toca litestream.yml ni auth sin plan.
+- **qa** — build limpio, revisión de diff, pruebas funcionales; escribe veredicto GO/NO-GO en `.rr/qa-veredicto.md`. Solo con GO se deploya a staging.
+
+### Reglas del entorno RR (TODOS los agentes dev)
+
+1. **Aislamiento físico**: trabajan exclusivamente en `/opt/rumihome-rr` (branch `rr` o `rr/feature-*`). PROHIBIDO tocar `/opt/rumihome` (prod), la DB de prod, `litestream.yml` de prod, o las credenciales de los bots de gestión.
+2. **Promoción**: `scripts/promote.sh` SOLO se ejecuta cuando Daniel escribe "APROBAR" al bot. Los agentes dev no pueden ejecutarlo ni hacer push a main.
+3. **Rollback**: cada promoción deja tags `prod-<fecha>-pre` (estado previo) y `prod-<fecha>`, más backup del DB (`/root/backups/pre-promote-*.db`). `scripts/rollback.sh [--db] [tag]` restaura.
+4. **Flujo de iteración**: QA NO-GO o `CAMBIOS: <texto>` → vuelve al equipo en el MISMO branch `rr/feature-*`.
+5. Máx 3 iteraciones por tarea → escalar a Daniel.
+6. Reset staging: el bot puede restaurar la DB staging desde `/root/backups/staging-seed.db` (snapshot de prod).
+
+### Infra del staging
+
+- Clone: `/opt/rumihome-rr` (branch `rr`), compose `docker-compose.rr.yml` → containers `rumihome-api-rr`, `rumihome-app-rr`, red `rumihome-rr`, DB bind-mount `./data/rumihome.db`.
+- nginx: `location /rr/` → app-rr (Vite base `/rr/`), `location /rr/api/` → api-rr.
+- Config opencode: `/root/.config/opencode-rr/` (opencode.json con provider glm-5.3-flash Ollama Cloud, `agent/*.md` con los prompts, `permissions.json` con bash allowlist que DENIEGA todo lo no listado).
+- Bot puente: container `agent-dev` (`agent-dev/`), env `/root/dev-agent.env` (TELEGRAM_BOT_TOKEN_DEV, TELEGRAM_CHAT_ID_DEV, OLLAMA_API_KEY compartida).
+
 ## Backlog / Tareas futuras
 
 - [ ] **Soporte a huéspedes por Telegram** — agente AISLADO (política de contexto), acceso solo lectura a SU reserva por PNR + clave de puerta.
