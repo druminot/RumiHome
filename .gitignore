@@ -3,4 +3,4 @@ dist/
 .env
 *.db
 *.db-journal
-.DS_Store
+.DS_Storedata/
