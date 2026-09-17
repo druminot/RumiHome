@@ -5,7 +5,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py tools.py auth.py ./
+COPY auth.py api_client.py router.py main.py ./
+COPY agents/ ./agents/
+COPY tools/ ./tools/
 
 ENV PYTHONUNBUFFERED=1
 

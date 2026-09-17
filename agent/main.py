@@ -1,16 +1,16 @@
-"""Rumihome Assistant — bot de Telegram con agente LangChain sobre Ollama Cloud.
+"""Rumihome Assistant — bot de Telegram multi-agente (router + sub-agentes) sobre Ollama Cloud.
 
-Arquitectura:
-  Telegram (polling) → python-telegram-bot → agente LangChain (create_agent)
-  → Ollama Cloud (glm-5.3-flash, endpoint OpenAI-compatible) → tools → API interna.
+Arquitectura (ver AGENTS.md):
+  Texto libre → router (supervisor) → delega a sub-agente (reservas/finanzas/domotica).
+  /reservas, /stats → directo al sub-agente, sin pasar por el router.
 
-Solo responde al chat ID autorizado (whitelist de administrador).
+Regla de contexto: los sub-agentes actuales COMPARTEN el historial de conversación
+(history[-8:]). Agentes futuros para usuarios distintos al anfitrión deben ser AISLADOS.
 """
+import asyncio
 import logging
 import os
 
-from langchain.agents import create_agent
-from langchain_openai import ChatOpenAI
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -21,7 +21,7 @@ from telegram.ext import (
 )
 
 import auth
-from tools import ALL_TOOLS
+from router import router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("rumihome-agent")
@@ -31,51 +31,9 @@ ALLOWED_CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 
 auth.configure(os.environ["FIREBASE_EMAIL"], os.environ["FIREBASE_PASSWORD"])
 
-SYSTEM_PROMPT = """Eres Rumihome Assistant, el asistente de administración del departamento
-de arriendo temporal "Departamento Concepción" (rumihome.io). Ayudas a Daniel, el anfitrión,
-a gestionar su negocio de arriendo por Telegram.
 
-Reglas:
-- Responde SIEMPRE en español, breve y directo. Usa emojis con moderación.
-- Para cualquier operación de reservas, finanzas o domótica usa las herramientas disponibles.
-- NUNCA inventes datos de reservas, precios ni consumos: consulta las herramientas.
-- Fechas en formato YYYY-MM-DD. Dinero en pesos chilenos (CLP).
-- CRÍTICO en fechas: SIEMPRE piensa el año explícitamente. Estamos en {today}. Si el usuario dice
-  "del 15 al 18 de noviembre" sin año, usa noviembre de {year_actual} si aún no pasó, o el año
-  siguiente. NUNCA uses años pasados. Verifica el año ANTES de llamar a la herramienta.
-- Si una herramienta devuelve error, explícalo claramemente y sugiere corregir los datos.
-- Al crear una reserva, entrega siempre el PNR y la clave de puerta al anfitrión.
-- Las reservas nuevas nacen "pendiente": pregunta si desea confirmarla (eso habilita la
-  clave de puerta para el pasajero en su portal).
-- Arriendos mínimos: desde 2 noches.
-- Si piden algo fuera de tu alcance (reservas, stats, gastos, domótica), dilo con cortesía."""
-
-
-def build_agent():
-    llm = ChatOpenAI(
-        base_url="https://ollama.com/v1",
-        api_key=os.environ["OLLAMA_API_KEY"],
-        model="glm-5.3-flash",
-        temperature=0.2,
-        max_retries=2,
-        timeout=90,
-    )
-    from datetime import date
-    hoy = date.today()
-    system_prompt = SYSTEM_PROMPT.format(
-        today=hoy.strftime("%d-%m-%Y"),
-        year_actual=hoy.year,
-    )
-    return create_agent(llm, tools=ALL_TOOLS, system_prompt=system_prompt)
-
-
-agent = build_agent()
-
-
-async def run_agent(messages: list) -> str:
-    """Ejecuta el agente (síncrono) en un hilo para no bloquear el loop de Telegram."""
-    import asyncio
-
+async def run_agent(agent, messages: list) -> str:
+    """Ejecuta un agente (síncrono) en un hilo para no bloquear el loop de Telegram."""
     result = await asyncio.to_thread(agent.invoke, {"messages": messages})
     return result["messages"][-1].content
 
@@ -85,18 +43,24 @@ def _authorized(update: Update) -> bool:
 
 
 async def cmd_reservas(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Comando directo al sub-agente de reservas (sin router)."""
     if not _authorized(update):
         return
+    from agents import build_reservas
+
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
-    answer = await run_agent([("user", "Lista las reservas")])
+    answer = await run_agent(build_reservas(), [("user", "Lista las reservas")])
     await update.message.reply_text(answer)
 
 
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Comando directo al sub-agente de finanzas (sin router)."""
     if not _authorized(update):
         return
+    from agents import build_finanzas
+
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
-    answer = await run_agent([("user", "Dame los stats del mes y el neto")])
+    answer = await run_agent(build_finanzas(), [("user", "Dame los stats del mes y el neto")])
     await update.message.reply_text(answer)
 
 
@@ -130,9 +94,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     messages = history[-8:] + [("user", text)]
     try:
-        answer = await run_agent(messages)
+        answer = await run_agent(router, messages)
     except Exception:
-        log.exception("Error ejecutando el agente")
+        log.exception("Error ejecutando el router")
         await update.message.reply_text("Ocurrió un error procesando tu mensaje. Intenta de nuevo.")
         return
 
@@ -149,7 +113,7 @@ def main() -> None:
     app.add_handler(CommandHandler("reservas", cmd_reservas))
     app.add_handler(CommandHandler("stats", cmd_stats))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    log.info("Rumihome Assistant iniciado (whitelist chat %s)", ALLOWED_CHAT_ID)
+    log.info("Rumihome Assistant (router + sub-agentes) iniciado (whitelist chat %s)", ALLOWED_CHAT_ID)
     app.run_polling(drop_pending_updates=True)
 
 
