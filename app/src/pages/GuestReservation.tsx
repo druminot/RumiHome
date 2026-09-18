@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useLocation, Link, Navigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { GuestReservationView } from '../types'
+import RetroScroller from '../components/RetroScroller'
 
 const GUEST_PATH = import.meta.env.VITE_GUEST_PATH ?? '/reserva'
 
@@ -57,11 +58,15 @@ export default function GuestReservationPage() {
 
   return (
     <div className="guest-shell">
+      <RetroScroller text={`★ RESERVA ${reservation?.pnr ?? 'ENCONTRADA'} · RUMIHOME DEPTO CONCEPCIÓN ★ GRACIAS POR VISITAR NUESTRA WEB ★`} />
       <div className="inner">
         <header className="guest-header">
-          <a className="logo" href="/">rumi<span>home</span></a>
+          <a className="logo" href="/">rumi<span>home</span> ★ 9X</a>
           <p>Detalle de tu reserva</p>
         </header>
+        <div className="guest-counter">
+          <span>¡Bienvenido huésped! Esta web se ve mejor con Internet Explorer 4.0</span>
+        </div>
 
         {loading && <div className="alert info">Cargando…</div>}
         {error && (
@@ -74,6 +79,7 @@ export default function GuestReservationPage() {
           <ReservationCard reservation={reservation} creds={creds} onUpdate={setReservation} />
         )}
       </div>
+      <RetroScroller color="marquee" text="★ RESERVAS DISPONIBLES 2026 · DEPTO CONCEPCIÓN ★ ESCRÍBENOS A WHATSAPP PARA DUDAS ★ WWW.RUMIHOME.IO ★" className="retro-bottom" />
     </div>
   )
 }
