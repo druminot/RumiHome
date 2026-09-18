@@ -96,9 +96,13 @@ RumiHome tiene un segundo entorno tipo profesional para desarrollar features con
 ### Infra del staging
 
 - Clone: `/opt/rumihome-rr` (branch `rr`), compose `docker-compose.rr.yml` → containers `rumihome-api-rr`, `rumihome-app-rr`, red `rumihome-rr`, DB bind-mount `./data/rumihome.db`.
-- nginx: `location /rr/` → app-rr (Vite base `/rr/`), `location /rr/api/` → api-rr.
-- Config opencode: `/root/.config/opencode-rr/` (opencode.json con provider glm-5.3-flash Ollama Cloud, `agent/*.md` con los prompts, `permissions.json` con bash allowlist que DENIEGA todo lo no listado).
-- Bot puente: container `agent-dev` (`agent-dev/`), env `/root/dev-agent.env` (TELEGRAM_BOT_TOKEN_DEV, TELEGRAM_CHAT_ID_DEV, OLLAMA_API_KEY compartida).
+- nginx (espejo completo):
+  - `location = /rr/` → landing estática del espejo (`/opt/rumihome-rr/landing/index.html`), links parcheados a `/rr/app/reserva`
+  - `location /rr/img/` → imágenes de la landing del espejo
+  - `location /rr/app/` → app-rr (SPA; Vite base `VITE_BASE_PATH=/rr/app/`, rutas `VITE_ADMIN_PATH=/rr/app/admin`, `VITE_GUEST_PATH=/rr/app/reserva`)
+  - `location /rr/api/` → api-rr
+- Config opencode: `/root/.config/opencode-rr/` (opencode.json con provider glm-5.3-flash Ollama Cloud, `agent/*.md` con los prompts, `permissions.json` con bash allowlist que DENIEGA todo lo no listado; `external_directory: deny`, bloqueo `/root` y `/etc/nginx`).
+- Bot puente: servicio systemd `rumihome-dev-bot` (`agent-dev/`, venv en `/opt/rumihome-rr/agent-dev/.venv`), env `/root/dev-agent.env` (TELEGRAM_BOT_TOKEN_DEV, TELEGRAM_CHAT_ID_DEV, OLLAMA_API_KEY compartida).
 
 ## Backlog / Tareas futuras
 
