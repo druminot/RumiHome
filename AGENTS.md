@@ -76,7 +76,8 @@ RumiHome tiene un segundo entorno tipo profesional para desarrollar features con
 
 ### Roles y prompts de los agentes dev
 
-- **pm** — clarifica la feature, la descompone en tareas (`.rr/plan.md`), NO codea. **Monitoreo rotativo cada 5 min**: revisa el trabajo de un agente, 5 min después otro, hasta dar la vuelta; si detecta desviación avisa al supervisor.
+- **pm** — **ROUTER del equipo**: clarifica la feature, aplica las reglas de ruteo (qué pasos aplican: ux/frontend/backend — queda escrito en `.rr/plan.md` sección `RUTEO`), descompone en tareas y NO codea. **Monitoreo rotativo cada 5 min**: revisa el trabajo de un agente, 5 min después otro, hasta dar la vuelta; también audita que el ruteo fue correcto; si detecta desviación avisa al supervisor.
+  - Reglas de ruteo: solo UI → ux+frontend; solo API/datos → backend; UI+datos → ux+frontend+backend; cambio de estilo global → ux siempre primero; duda de alcance → pregunta a Daniel; QA siempre aplica.
 - **supervisor** — SOLO audita que el grupo siga la línea del pedido. Si detecta desvío: crea `.rr/HALT` (todos los agentes se detienen al verlo), redacta informe y el bot lo envía a Daniel por Telegram. Solo Daniel levanta el HALT con `REANUDAR`.
 - **ux** — genera spec de UI (`.rr/ux-<feature>.md`) desde `styles.css` (fuente de verdad del diseño) ANTES de codificar; revisión visual del staging DESPUÉS del deploy. Gate doble.
 - **frontend** — implementa en `app/` siguiendo la spec UX; `npm run build` debe pasar.
