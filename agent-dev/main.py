@@ -43,9 +43,12 @@ def _authorized(update: Update) -> bool:
     return update.effective_chat is not None and update.effective_chat.id == ALLOWED_CHAT_ID
 
 
-def _run(cmd: list, cwd: Path = RR_DIR, timeout: int = 900) -> tuple[int, str]:
+def _run(cmd: list, cwd: Path = RR_DIR, timeout: int = 900, opencode: bool = False) -> tuple[int, str]:
+    env = os.environ.copy()
+    if opencode:
+        env["XDG_CONFIG_HOME"] = RR_CONFIG_DIR
     try:
-        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
         return res.returncode, (res.stdout + res.stderr)[-3500:]
     except subprocess.TimeoutExpired:
         return 124, "TIMEOUT del comando"
@@ -53,31 +56,9 @@ def _run(cmd: list, cwd: Path = RR_DIR, timeout: int = 900) -> tuple[int, str]:
         return 1, str(e)
 
 
-def _opencode(agent: str, instruction: str, timeout: int = 1800) -> str:
-    """Ejecuta opencode headless con el agente dado en /opt/rumihome-rr."""
-    cmd = [
-        "opencode", "run",
-        "--config", f"{RR_CONFIG_DIR}/opencode.json",
-        "--agent", agent,
-        "--format", "plain",
-        "--quiet",
-        agent,  # el prompt va como parte del comando; el agente define su rol
-    ]
-    # opencode run acepta el prompt como argumento final
-    cmd = ["opencode", "run", "--agent", agent, "--format", "plain", agent]
-    env = os.environ.copy()
-    env["OPENCODE_CONFIG"] = RR_CONFIG_DIR
-    env["XDG_CONFIG_HOME"] = RR_CONFIG_DIR
-    try:
-        res = subprocess.run(
-            ["opencode", "run", "--agent", agent, agent],
-            cwd=RR_DIR, capture_output=True, text=True, timeout=timeout, env=env,
-        )
-        return (res.stdout + res.stderr)[-3500:] or "(sin salida)"
-    except subprocess.TimeoutExpired:
-        return "TIMEOUT: el agente tardó demasiado"
-    except Exception as e:
-        return f"ERROR: {e}"
+def _agent(agent: str, instruction: str, timeout: int = 900) -> tuple[int, str]:
+    """Invoca opencode headless con el agente dado, config RR, en /opt/rumihome-rr."""
+    return _run(["opencode", "run", "--agent", agent, instruction], timeout=timeout, opencode=True)
 
 
 async def _send(chat_id: int, text: str, context) -> None:
@@ -95,19 +76,19 @@ async def _monitor_loop(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
             break
         target = agents[i % len(agents)]
         i += 1
-        rc, out = _run(
-            ["opencode", "run", "--agent", "pm",
-             f"MONITOREO ROTATIVO: revisa el trabajo de '{target}' ahora. "
-             "Compara git diff con plan.md y registra desviaciones si las hay."],
+        rc, out = _agent(
+            "pm",
+            f"MONITOREO ROTATIVO: revisa el trabajo de '{target}' ahora. "
+            "Compara git diff con plan.md y registra desviaciones si las hay.",
             timeout=600,
         )
         if HALT.exists():
             break
         if rc != 0 or "DESVIACIÓN" in out or "desviación" in out:
             # invoca supervisor para veredicto formal
-            rc2, out2 = _run(
-                ["opencode", "run", "--agent", "supervisor",
-                 "El PM reportó posible desviación durante monitoreo. Audita y actúa (HALT si corresponde)."],
+            rc2, out2 = _agent(
+                "supervisor",
+                "El PM reportó posible desviación durante monitoreo. Audita y actúa (HALT si corresponde).",
                 timeout=900,
             )
             if HALT.exists():
@@ -204,9 +185,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         feedback = text.split(":", 1)[1].strip() if ":" in text else "revisar lo pedido"
         if _state["busy"] and _state["branch"]:
             rc, out = _run(["git", "checkout", _state["branch"]])
-            rc2, out2 = _run(["opencode", "run", "--agent", "pm",
-                              f"Daniel pidió cambios en {_state['branch']}: {feedback}. Actualiza el plan y reasigna tareas."],
-                             timeout=900)
+            rc2, out2 = _agent("pm", f"Daniel pidió cambios en {_state['branch']}: {feedback}. Actualiza el plan y reasigna tareas.", timeout=900)
             await _send(chat_id, f"🔄 Iteración iniciada en {_state['branch']}:\n{out2[:1500]}")
         else:
             await _send(chat_id, "No hay feature activa. Pídeme una feature nueva.")
@@ -233,7 +212,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # PM analiza + rutea (decide qué pasos aplican)
     await _send(chat_id, f"🚀 Iniciando feature en {branch}\n📋 PM analizando y ruteando...")
-    rc, out = _run(["opencode", "run", "--agent", "pm", f"Nueva feature de Daniel: {text}"], timeout=900)
+    rc, out = _agent("pm", f"Nueva feature de Daniel: {text}", timeout=900)
     if HALT.exists():
         await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
         _state.update(busy=False)
@@ -252,7 +231,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Ejecutar solo los pasos que el PM marcó APLICA
     if route.get("ux"):
         await _send(chat_id, "🎨 UX generando spec...")
-        rc, out = _run(["opencode", "run", "--agent", "ux", f"Feature: {text}. Genera la spec de UI."], timeout=900)
+        rc, out = _agent("ux", f"Feature: {text}. Genera la spec de UI.", timeout=900)
         if HALT.exists():
             monitor.cancel(); _state.update(busy=False)
             await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
@@ -261,7 +240,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if route.get("frontend"):
         await _send(chat_id, "⚙️ Frontend trabajando...")
-        rc_f, out_f = _run(["opencode", "run", "--agent", "frontend", f"Implementa: {text}"], timeout=1800)
+        rc_f, out_f = _agent("frontend", f"Implementa: {text}", timeout=1800)
         if HALT.exists():
             monitor.cancel(); _state.update(busy=False)
             await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
@@ -270,7 +249,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if route.get("backend"):
         await _send(chat_id, "🗄 Backend trabajando...")
-        rc_b, out_b = _run(["opencode", "run", "--agent", "backend", f"Soporta: {text}"], timeout=1800)
+        rc_b, out_b = _agent("backend", f"Soporta: {text}", timeout=1800)
         if HALT.exists():
             monitor.cancel(); _state.update(busy=False)
             await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
@@ -279,7 +258,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # QA SIEMPRE aplica
     await _send(chat_id, "🔍 QA validando...")
-    rc_q, out_q = _run(["opencode", "run", "--agent", "qa", f"Valida: {text}"], timeout=1200)
+    rc_q, out_q = _agent("qa", f"Valida: {text}", timeout=1200)
     if HALT.exists():
         monitor.cancel(); _state.update(busy=False)
         await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
