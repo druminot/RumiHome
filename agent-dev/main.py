@@ -102,7 +102,6 @@ async def _monitor_loop(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
             timeout=600,
         )
         if HALT.exists():
-            await _send(chat_id, "🛨 HALT detectado durante monitoreo — frena todo.", None) if False else None
             break
         if rc != 0 or "DESVIACIÓN" in out or "desviación" in out:
             # invoca supervisor para veredicto formal
@@ -121,6 +120,39 @@ def _deploy_staging(chat_id: int, context) -> None:
     """Deploy staging: build + up de los servicios -rr."""
     rc, out = _run(["docker", "compose", "-f", "docker-compose.rr.yml", "up", "-d", "--build"], timeout=600)
     return rc, out
+
+
+def _read_route() -> dict:
+    """Lee la sección RUTEO de .rr/plan.md. QA siempre True (fallback defensivo)."""
+    route = {"ux": True, "frontend": True, "backend": True, "qa": True}
+    plan_file = RR_DIR / ".rr" / "plan.md"
+    try:
+        content = plan_file.read_text()
+    except OSError:
+        log.warning("plan.md no encontrado — usando pipeline completo por defecto")
+        return route
+    in_route = False
+    for line in content.splitlines():
+        if line.strip().lower().startswith("## rut"):
+            in_route = True
+            continue
+        if in_route and line.strip().startswith("#"):
+            break
+        if not in_route:
+            continue
+        m = re.match(r"\s*-\s*(\w+)\s*:\s*(APLICA|NO APLICA)", line, re.I)
+        if m:
+            agent = m.group(1).lower()
+            applies = m.group(2).upper() == "APLICA"
+            if agent in route:
+                route[agent] = applies if agent != "qa" else True
+    # QA nunca se salta
+    route["qa"] = True
+    # Si no hay frontend ni backend ni ux, algo raro: pipeline completo por seguridad
+    if not any(route[k] for k in ("ux", "frontend", "backend")):
+        log.warning("Ruteo vacío — pipeline completo por defecto")
+        route.update(ux=True, frontend=True, backend=True)
+    return route
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -199,7 +231,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     _run(["git", "checkout", "-B", branch, "origin/rr"])
 
-    await _send(chat_id, f"🚀 Iniciando feature en {branch}\n1/4 PM analizando...")
+    # PM analiza + rutea (decide qué pasos aplican)
+    await _send(chat_id, f"🚀 Iniciando feature en {branch}\n📋 PM analizando y ruteando...")
     rc, out = _run(["opencode", "run", "--agent", "pm", f"Nueva feature de Daniel: {text}"], timeout=900)
     if HALT.exists():
         await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
@@ -207,36 +240,44 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     await _send(chat_id, f"📋 PM:\n{out[:1200]}")
 
+    # Leer el RUTEO decidido por el PM desde plan.md
+    route = _read_route()
+    log.info("Ruteo del PM: %s", route)
+    resumen_ruteo = ", ".join(f"{k}={'✅' if v else '⏭️'}" for k, v in route.items())
+    await _send(chat_id, f"🧭 Ruteo: {resumen_ruteo}")
+
     monitor = asyncio.create_task(_monitor_loop(chat_id, context))
     _state["monitor"] = monitor
 
-    # UX spec
-    await _send(chat_id, "🎨 UX generando spec...")
-    rc, out = _run(["opencode", "run", "--agent", "ux", f"Feature: {text}. Genera la spec de UI."], timeout=900)
-    if HALT.exists():
-        monitor.cancel(); _state.update(busy=False)
-        await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
-        return
-    await _send(chat_id, f"🎨 UX:\n{out[:1200]}")
+    # Ejecutar solo los pasos que el PM marcó APLICA
+    if route.get("ux"):
+        await _send(chat_id, "🎨 UX generando spec...")
+        rc, out = _run(["opencode", "run", "--agent", "ux", f"Feature: {text}. Genera la spec de UI."], timeout=900)
+        if HALT.exists():
+            monitor.cancel(); _state.update(busy=False)
+            await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
+            return
+        await _send(chat_id, f"🎨 UX:\n{out[:1200]}")
 
-    # Frontend + Backend
-    await _send(chat_id, "⚙️ Frontend trabajando...")
-    rc_f, out_f = _run(["opencode", "run", "--agent", "frontend", f"Implementa: {text}"], timeout=1800)
-    if HALT.exists():
-        monitor.cancel(); _state.update(busy=False)
-        await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
-        return
-    await _send(chat_id, f"💻 Frontend:\n{out_f[:1200]}")
+    if route.get("frontend"):
+        await _send(chat_id, "⚙️ Frontend trabajando...")
+        rc_f, out_f = _run(["opencode", "run", "--agent", "frontend", f"Implementa: {text}"], timeout=1800)
+        if HALT.exists():
+            monitor.cancel(); _state.update(busy=False)
+            await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
+            return
+        await _send(chat_id, f"💻 Frontend:\n{out_f[:1200]}")
 
-    await _send(chat_id, "🗄 Backend trabajando...")
-    rc_b, out_b = _run(["opencode", "run", "--agent", "backend", f"Soporta: {text}"], timeout=1800)
-    if HALT.exists():
-        monitor.cancel(); _state.update(busy=False)
-        await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
-        return
-    await _send(chat_id, f"🗄 Backend:\n{out_b[:1200]}")
+    if route.get("backend"):
+        await _send(chat_id, "🗄 Backend trabajando...")
+        rc_b, out_b = _run(["opencode", "run", "--agent", "backend", f"Soporta: {text}"], timeout=1800)
+        if HALT.exists():
+            monitor.cancel(); _state.update(busy=False)
+            await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}")
+            return
+        await _send(chat_id, f"🗄 Backend:\n{out_b[:1200]}")
 
-    # QA
+    # QA SIEMPRE aplica
     await _send(chat_id, "🔍 QA validando...")
     rc_q, out_q = _run(["opencode", "run", "--agent", "qa", f"Valida: {text}"], timeout=1200)
     if HALT.exists():
