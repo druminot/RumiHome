@@ -22,7 +22,8 @@ services:
         VITE_FIREBASE_API_KEY: AIzaSyCpuL_aoKkogaWtkhPKsnWRw68FP5J5ecg
         VITE_FIREBASE_AUTH_DOMAIN: rumihome-448217.firebaseapp.com
         VITE_FIREBASE_PROJECT_ID: rumihome-448217
-        VITE_FIREBASE_APP_ID: 1:315822949726:web:7e0d2556d560e170917bcf
+        VITE_APP_ID: 1:315822949726:web:7e0d2556d560e170917bcf
+        VITE_BASE_PATH: /rr/
     container_name: rumihome-app-rr
     restart: unless-stopped
     depends_on:
