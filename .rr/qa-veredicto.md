@@ -185,3 +185,56 @@ Esto rompe el ruteo del propio `plan.md` (pm NO codea; spec = ux; veredicto = qa
 
 ## Veredicto
 **GO** — escenario 3 re-ejecutado cumple los 5 criterios solicitados por Daniel. Listo para deploy a staging, revisión visual de UX (gate doble) y promoción a PROD solo con "APROBAR" explícito.
+
+---
+
+# Adenda — Escenario 4: Validación RUT (commits `0710bd8` + `dbc44d0`)
+
+**Fecha:** 2026-09-19
+**Commits validados:** `0710bd8 rr(frontend): validacion RUT en portal huesped` · `dbc44d0 rr(backend): validacion RUT server-side`
+**Branch:** `rr-feature-4-rut-validator`
+**Revisado por:** QA (validación independiente; veredicto **de QA**, no del PM)
+**Resultado: GO ✅** — cumple los 6 criterios de Daniel. Con una observación de compatibilidad a decidir (ver abajo).
+
+## Criterios verificados
+
+### 1) Build `app/` y `server/` — ✅ PASA
+- Ejecutados con Node **v22.23.2** (mismo runtime `node:22-alpine` del Dockerfile) vía `docker run --rm -v /opt/rumihome-rr:/workspace node:22-alpine`, sin node en el host.
+- `server/`: `npm run build` (`tsc`) → **0 errores**, `dist/` generado.
+- `app/`: `npm run build` (`tsc -b && vite build`) → **0 errores**, 56 módulos transformados, dist generado. Único warning: import dinámico de `firebase.ts`, **preexistente** (ya reportado en iteraciones previas).
+- `app/tsconfig.tsbuildinfo` (artefacto del build versionado) restaurado a `HEAD`; no queda en el working tree.
+
+### 2) Diffs: solo `app/src` y `server/src` — ✅ PASA
+- `git diff --name-only $(git merge-base HEAD rr)..HEAD` (merge-base `fb8cbbf`) → **5 archivos**, todos bajo `app/src/` o `server/src/`:
+  - `app/src/lib/rut.ts` (nuevo), `app/src/pages/GuestLogin.tsx`
+  - `server/src/lib/rut.ts` (nuevo), `server/src/routes/admin.ts`, `server/src/db/reservations.ts`
+- Nada en `landing/`, `agent/`, `scripts/`, `litestream.yml`, compose, nginx ni auth. Working tree actual: solo `.rr/plan.md` (mod) y `.rr/ux-rut.md` (spec, untracked).
+- Norma de sincronía del plan: `app/src/lib/rut.ts` y `server/src/lib/rut.ts` **byte-idénticos** (diff = 0).
+
+### 3) Lógica módulo 11 — ✅ PASA (verificada contra el algoritmo, NO contra el plan)
+- Vectores validados ejecutando el **código real compilado** (`server/dist/lib/rut.js`):
+  - `11.111.111-1` → **válido** (`validarRut` ok=true) ✅
+  - `12.345.678-5` → **válido** (ok=true) ✅
+  - `12.345.678-4` → **INVÁLIDO** (ok=false, `RUT_INVALIDO_DV`) ✅ — **el plan lo tenía como "válido DV=4" (vector erróneo del plan).** Cálculo correcto: cuerpo `12345678`, pesos [2..7] de derecha a izquierda → suma 138, resto 6, DV = 11−6 = **5**. Por eso `-4` es incorrecto y `-5` es el DV verdadero. El algoritmo lo rechaza bien.
+  - Branch `K`: `16500003-K` válido (y en minúscula `-k`, y sin separador `16500003K`); `16500003-0` rechazado por DV.
+  - Formatos corruptos (`abcd`, `12345678KK`, vacío, `-x`) → `RUT_INVALIDO_FORMATO`; separadores mixtos (`.`, `-`, espacio) normalizan a `123456785`.
+
+### 4) Compatibilidad `guestLookup` con RUTs viejos — ✅ PASA (nivel función + HTTP E2E)
+- **Fixtures**: copias de `.rr/qa-copy.db`; DB manipulations y servidor vía docker (`node dist/index.js` + DB_PATH a la copia).
+- Nivel DB/`guestLookup` (11 casos): stored **sin formato** (`12345678-5`, `77777777`, `16500003k`) matchea con input con formato (`12.345.678-5`, `7.777.777-7`, `16.500.003-K`), sin formato, con espacios, PNR en minúsculas y K minúscula/mayúscula. Todo PASS.
+- Nivel HTTP (`POST /api/guest/lookup`, router público): input `12.345.678-5` y `123456785` contra stored `12345678-5` → **200** con la reserva; K stored `16500003k` vs `16.500.003-K` → **200**. Casos de error: RUT con DV malo → 400, formato corrupto → 400, PNR inexistente con RUT válido → 404, sin RUT → 400.
+- Retrocompatibilidad formal: todo match de la query vieja (igualdad exacta tras trim) sigue matcheando porque la nueva compara normalizado (puntos/guiones/espacios fuera, upper) de ambos lados.
+
+### 5) Sin deps nuevas — ✅ PASA
+- `git diff merge-base..HEAD` en `package.json` / `package-lock.json` (app y server) → **vacío** (exit 0, sin cambios). Los `lib/rut.ts` son JS/TS puro, sin imports nuevos.
+
+### 6) Veredicto de QA en `.rr/qa-veredicto.md` — ✅ PASA (esta sección)
+
+## Observaciones (decidir con Daniel)
+
+1. **`[MEDIA]` Lockout de RUTs históricos con DV incorrecto.** La validación HARD (antes del lookup) devuelve `400 RUT_INVALIDO_DV` si el RUT ingresado no pasa módulo 11 — correcto según el pedido. PERO en la DB de staging **las 4 reservas existentes tienen DV inválido** (`12.345.678-9`, `98.765.432-1`, `7.777.777-7`, `5.333.333-3`; todas son datos demo). Esos huéspedes hoy **no pueden reentrar a su reserva** con el RUT que se les guardó (mismo RUT estricto → 400). No es un fallo del algoritmo; es la consecuencia de validar estricto sobre datos históricos no validados. El `guestLookup` normalizado match se verificó, pero el router bloquea antes. Recomendación: decidir si en los endpoints `/api/guest/*` se relaja a "formato válido" sin exigir DV (para no bloquear historial), o aceptar la estrictez y limpiar/remigrar los RUTs demo de staging. Opción documentable como backlog (el plan ya contemplaba relajar para DNI extranjero).
+2. **`[BAJA]` El admin valida pero no normaliza al guardar** (plan tarea 4 decía "guardar `12345678-4`"; el commit guarda `guest_rut.trim()` tal cual en `POST /reservations`). No rompe matching (el lookup normaliza), pero queda como backlog si se quiere unificar el dato en la fuente.
+3. La validación visual del form admin (backlog del plan) no se tocó — dentro del alcance declarado.
+
+## Veredicto
+**GO** — escenario 4 cumple los 6 criterios: builds limpios en app y server, diff confinado a `app/src`+`server/src`, algoritmo módulo 11 correcto en los 3 vectores (incl. `12.345.678-4` **inválido**, corrigiendo el vector erróneo del plan), `guestLookup` compatible con RUTs viejos sin formato (función + HTTP E2E) y sin deps nuevas. Se recomienda resolver la observación `[MEDIA]` de lockout histórico antes de la promoción a PROD, o al menos tenerla explícitamente aceptada por Daniel.

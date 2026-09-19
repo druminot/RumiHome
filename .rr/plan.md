@@ -1,74 +1,168 @@
-# Plan: REVERSIÓN total de la estética 90s del espejo (iteración 3)
+# Plan: Validación RUT chileno en portal huésped /reserva (escenario 4)
 
-## Orden de Daniel (iteración 3 — reversion)
-Revertir TODA la estética 90s del espejo: la landing (`landing/index.html`) y la SPA (`app/`).
-El espejo debe volver a la estética NORMAL (estado `origin/rr`).
+## Orden de Daniel (escenario 4)
+Agregar validación de RUT chileno en el formulario del portal huésped (`/reserva`):
+formato + dígito verificador (módulo 11). Tanto en frontend como en el endpoint
+backend. Mostrar mensaje de error claro si es inválido. NO codear en la sesión del
+pm — este documento es el entregable de ruteo y planificación.
 
-## LÍNEA FRONTERA: qué se revierte y qué NO
+## Contexto (verificado en código)
+- Formulario objetivo: `app/src/pages/GuestLogin.tsx` — el "formulario de reserva"
+  del huésped es el lookup PNR + RUT (`/reserva`). El RUT se envía crudo
+  (`rut.trim()`) a `POST /api/guest/lookup` vía `app/src/api/client.ts`.
+- Endpoints backend que reciben `rut` (`server/src/routes/admin.ts`):
+  - `guestRouter` (públicos, factor de auth del huésped): `POST /guest/lookup`,
+    `POST /guest/reservation`, `PATCH /guest/reservation` — hoy solo validan no vacío.
+  - `adminRouter`: `POST /reservations` (crear — RUT obligatorio, sin más checks) y
+    `PATCH /reservations/:id` (permite cambiar `guest_rut` sin validar).
+- `guestLookup(pnr, rut)` en `server/src/db/reservations.ts:350` compara por
+  igualdad exacta `guest_rut = ?`. El formato almacenado varía (con/sin puntos,
+  guión), por lo que validar formato estricto puede romper el matching de datos
+  históricos.
+- No existe ninguna validación de RUT en el repo (ni app, ni server, ni scripts).
+- Estructura: el server es TS (`npm run build` = `tsc`, `typecheck` = `tsc --noEmit`),
+  corre en Docker (`docker-compose.rr.yml` api-rr). `server/dist` y `node_modules`
+  están en .gitignore. `app/` es Vite (`npm run build`).
+- Rutas admin: la tabla `reservations.guest_rut` guarda el RUT del pasajero; el
+  huésped se autentica con PNR + RUT. Un RUT inválido creado en admin haría
+  imposible (o trivial) ese factor de auth.
 
-### SÍ se revierte (estética 90s) — target = `origin/rr`
-| Archivo | Cambio a revertir | Origen del cambio |
-|---|---|---|
-| `app/src/styles.css` | restyling 90s completo (paleta VGA/neón, Comic Sans, bordes bevel/ridge, fondo espacial, cursor crosshair, modal Win95, marquee) | commit `26d2bbc` |
-| `app/index.html` | título/favicon/fonts 90s | commit `26d2bbc` |
-| `app/src/pages/AdminDashboard.tsx` | marquee + contador de visitas + botón "SALIR" | commit `26d2bbc` |
-| `app/src/pages/AdminLogin.tsx` | marquee + botón "ENTRAR" | commit `26d2bbc` |
-| `app/src/pages/GuestLogin.tsx` | marquee + botón "VER MI RESERVA" | commit `26d2bbc` |
-| `app/src/pages/GuestReservation.tsx` | marquees + banner "Internet Explorer 4.0" + logo "★ 9X" | commit `26d2bbc` |
-| `app/src/pages/DashboardTab.tsx` | paleta de gráficos retro | commit `26d2bbc` |
-| `app/src/components/RetroScroller.tsx` | **ELIMINAR** (archivo nuevo 90s) | commit `26d2bbc` |
-| `landing/index.html` | restyling 90s de las 7 secciones (+203/−102) | commit `033b4d0` |
+## ACLARACIÓN de alcance (duda registrada, NO bloquea)
+- Los labels actuales dicen "RUT / DNI". Con validación ESTRICTA de RUT chileno,
+  huéspedes extranjeros con DNI (pasaporte) quedarían bloqueados del lookup.
+  - DECISIÓN por defecto: cumplir el pedido literal (RUT chileno, módulo 11).
+  - Si Daniel quiere admitir DNI extranjero, se relaja el formato (el campo sigue)
+    — cambio de 1 línea documentado aquí para futuro.
+- El formulario admin (`ReservasTab.tsx`) también ingresa RUT al crear reservas.
+  Se valida en BACKEND (integridad del dato), pero el scope visual/frontend pedido
+  es solo el portal huésped. La validación visual del form admin queda como
+  backlog opcional (anotado en TAREAS).
 
-### NO se revierte (infra de estructura `/rr/`, orden explícita de Daniel)
-- `docker-compose.rr.yml` — queda intacto: `VITE_BASE_PATH=/rr/app/`,
-  `VITE_ADMIN_PATH=/rr/app/admin`, `VITE_GUEST_PATH=/rr/app/reserva`, `VITE_APP_ID`.
-- Rutas del espejo en `landing/index.html`: `/rr/img/*`, `/rr/app/reserva` (cambios del commit `badcdd4`).
-- Estructura portada `/rr/` (landing) + SPA `/rr/app/` SE MANTIENE.
-- `app/` nunca se movió físicamente; `/rr/app/` es solo ruta de servicio (Vite base path). Rever `app/` a `origin/rr` NO rompe la estructura.
+## LÍNEA FRONTERA: qué se toca y qué NO
 
-### Fuera de alcance (prohibido tocar)
-`server/`, `agent/`, `scripts/`, `litestream.yml`, config nginx, credenciales.
-Los docs `.rr/ux-landing-90s.md` y `.rr/qa-veredicto.md` se conservan como ARCHIVO de historial; no se borran.
+### Sí se toca
+| Área | Archivos |
+|---|---|
+| backend | `server/src/routes/admin.ts` (guestRouter + adminRouter), `server/src/db/reservations.ts` (lookup normalizado) + **nuevo** `server/src/lib/rut.ts` |
+| frontend | `app/src/pages/GuestLogin.tsx` + **nuevo** `app/src/lib/rut.ts` (espejo del algoritmo) |
+| docs proceso | `.rr/ux-rut.md` (spec), `.rr/qa-veredicto.md`, este plan |
 
-## RUTEO
-- pm: APLICA — redacta este plan (no codea).
-- supervisor: APLICA — audita que la reversión NO toque infra (compose, rutas `/rr/`, server, agent).
-- ux: NO APLICA (spec) — no hay diseño nuevo que especificar (el target estético ES `origin/rr`);
-  APLICA SOLO en revisión visual del staging post-deploy (gate doble).
-- frontend: APLICA — ejecuta la reversión en `app/` y `landing/index.html`.
-- backend: NO APLICA — no hay cambios de datos ni endpoints.
-- qa: APLICA — build, control de alcance y veredicto GO/NO-GO.
+### NO se toca (prohibido/descartado)
+- `landing/`, `agent/`, `litestream.yml`, `scripts/promote.sh`, `scripts/rollback.sh`.
+- Middleware de auth Firebase (`server/src/middleware/auth.ts`, `firebase-admin.ts`).
+- Migración masiva de datos ni bases de prod. NO se reescribe `guest_rut` histórico:
+  la compatibilidad se resuelve con comparación normalizada en el lookup.
+- `app/src/pages/ReservasTab.tsx` (visual) — queda como backlog opcional.
+
+## Algoritmo (especificación única para app y server)
+`validarRut(input: string): { ok: boolean; normalizado: string; error?: string }`
+1. **Normalizar**: eliminar puntos, espacios y guión; upper; DV `k` → `K`.
+   Ej: `12.345.678-4` → `123456784`; `11.111.111-1` → `111111111`.
+2. **Formato**: deben quedar 2 a 9 caracteres alfanuméricos; el último es el DV
+   (dígito 0-9 o `K`); el cuerpo (todo menos el último) debe ser 1 a 8 dígitos.
+   Cualquier otra cosa → error de FORMATO.
+3. **Dígito verificador (módulo 11)**: pesos [2,3,4,5,6,7] cíclicos sobre el cuerpo
+   de derecha a izquierda. `suma = Σ (dígito × peso)`. `resto = suma % 11`.
+   `dv = 11 - resto`; si `dv = 11` → `0`; si `dv = 10` → `K`.
+   Comparar con el DV ingresado → si difiere, error de DÍGITO VERIFICADOR.
+4. **Estructura de salida**: `normalizado` en formato canónico `12345678-4` / `11111111-K`.
+5. Formato inválido explícito → NO calcular DV (error claro separado de "DV no coincide").
+
+Norma de sincronía: `app/src/lib/rut.ts` y `server/src/lib/rut.ts` son funciones
+puras idénticas (no hay paquete compartido entre app/server). QA debe diff-arlas.
+
+## RUTEO (reglas del entorno RR)
+- **pm**: APLICA — este plan (no codea).
+- **supervisor**: APLICA — audita que el cambio NO toque infra, auth ni agents.
+- **ux**: APLICA (UI+datos → ux+frontend+backend; cambio de formulario con mensajes
+  de error). Emite spec `.rr/ux-rut.md` antes de codificar y revisa el staging
+  post-deploy (gate doble).
+- **frontend**: APLICA — validación en `GuestLogin.tsx` + `app/src/lib/rut.ts`;
+  `npm run build` debe pasar.
+- **backend**: APLICA — `server/src/lib/rut.ts`, validación en guestRouter +
+  adminRouter, lookup con normalización; `npm run build` y smoke test contra SQLite staging.
+- **qa**: APLICA (siempre) — diff, build limpio, casos de prueba, veredicto GO/NO-GO.
+- **backlog (NO en este escenario)**: validación visual del form admin, admisión
+  opcional de DNI extranjero, limpieza de RUTs históricos no normalizados.
 
 ## TAREAS
-1. [frontend] Revertir `app/` al estado `origin/rr`
-   - Comando sugerido: `git checkout origin/rr -- app/` (o `git revert 26d2bbc`).
-   - Elimina `app/src/components/RetroScroller.tsx`; restaura `styles.css`, `index.html`
-     y las 5 páginas a su versión normal.
-   - Criterios: `git diff origin/rr -- app/` vacío; build OK (`docker build` del Dockerfile de `app/`);
-     SPA sigue sirviendo en `/rr/app/` (compose NO se toca).
-   - Estado: pendiente
-2. [frontend] Revertir `landing/index.html` al estado pre-90s
-   - Comando sugerido: `git checkout 033b4d0~1 -- landing/index.html` (= estado `badcdd4`).
-   - Criterios: `git diff badcdd4 -- landing/index.html` vacío;
-     conserva rutas `/rr/img/*` y `/rr/app/reserva` (infra NO revertida),
-     lightbox JS, `mailto`, anclas `#amenidades/#galeria/#reservar` y todo el contenido/textos.
-   - Estado: pendiente
-3. [ux] Revisión visual en staging post-deploy (gate doble)
-   - Criterios: `/rr/` y `/rr/app/` lucen como PROD normal — sin marquee, sin paleta VGA/neón,
-     sin Comic Sans, sin cursor crosshair, sin blink, sin bordes bevel/Win95.
-   - Estado: pendiente
-4. [qa] Validación final
-   - Criterios: `git diff origin/rr..HEAD --name-only` limitado a `app/*` y `landing/index.html`
-     (diferencias = solo la reversión aplicada o vacías); nada en `server/`, `agent/`, `scripts/`,
-     `docker-compose.rr.yml`, nginx, `litestream.yml`; build limpio; veredicto GO/NO-GO en `.rr/qa-veredicto.md`.
-   - Estado: pendiente
-5. [pm] Registrar resultado en historial de desviaciones y confirmar alcance de infra intacta
+1. [ux] Spec `.rr/ux-rut.md` (antes de codificar)
+   - Mensaje de error claro inline bajo el campo RUT, usando `.field` + `.alert error`
+     existentes (sin estilos nuevos) + `role="alert"`/aria-invalid.
+   - Constate de sintaxis: hint del placeholder `12.345.678-9`; diferencias de copy
+     entre "formato inválido" y "dígito verificador no coincide"; maxLength y
+     normalización de puntos/guiones al escribir (recomendación, no obligatorio).
+   - El botón queda activo pero el submit se bloquea mostrando el error inline.
    - Estado: pendiente
 
-## DESVIACIONES (historial)
-- Iteración 1: PM codeó directamente (violación de rol) → corregido: prohibición explícita en su prompt.
-- Iteración 1: plan.md no existía al iniciar frontend → corregido: regla "plan antes de asignar".
-- Iteración 1: permisos endurecidos (external_directory deny, /root y /etc/nginx bloqueados).
-- Iteración 2: compromiso de NO codear (plan escrito ANTES de asignar a ux/frontend/qa).
-- Iteración 3: Daniel revierte la estética 90s completa (landing + SPA). La infra `/rr/`
-  (portada + `/rr/app/`, compose, rutas `/rr/*`) es orden explícita de NO revertir.
+2. [backend] Crear `server/src/lib/rut.ts`
+   - Funciones puras `normalizarRut`, `calcularDv` y `validarRut` según el algoritmo.
+   - Estados de error: `RUT_INVALIDO_FORMATO` y `RUT_INVALIDO_DV`.
+   - Estado: pendiente
+
+3. [backend] Validar en `guestRouter` (`admin.ts`)
+   - `POST /guest/lookup`, `POST /guest/reservation`, `PATCH /guest/reservation`:
+     antes del lookup, `validarRut(rut)`; si no ok → `400 { error: 'RUT inválido:
+     verifica el formato y el dígito verificador' }` (mensaje claro, no genérico).
+   - Enviar el RUT **normalizado** a `guestLookup` (compatibilidad de matching).
+   - Estado: pendiente
+
+4. [backend] Validar y normalizar en `adminRouter`
+   - `POST /reservations`: si `guest_rut` no pasa `validarRut` → 400 con el mismo
+     mensaje claro; guardar en la DB el RUT **normalizado** (`12345678-4`).
+   - `PATCH /reservations/:id`: aplicar la misma validación cuando cambia `guest_rut`.
+   - Estado: pendiente
+
+5. [backend] Lookup con normalización (`db/reservations.ts`)
+   - `guestLookup` debe comparar por RUT normalizado (sin puntos/guiones/espacios,
+     upper) para no romper matching de filas históricas con formatos mixtos.
+   - NO migrar datos; limpieza normalizada queda como backlog.
+   - Estado: pendiente
+
+6. [backend] Build y smoke test
+   - `npm run typecheck` y `npm run build` en `server/` sin errores.
+   - Smoke contra SQLite de staging (`data/rumihome.db`): crear reserva con RUT
+     válido (200/201), con RUT de DV malo (400), con formato corrupto (400); lookup
+     huésped con RUT con y sin puntos (debe matchear).
+   - Estado: pendiente
+
+7. [frontend] Crear `app/src/lib/rut.ts` (espejo idéntico del algoritmo backend)
+   - Estado: pendiente
+
+8. [frontend] Validar en `GuestLogin.tsx`
+   - Validar `rut` antes de llamar a `api.guestLookup`; si inválido → mensaje de
+     error inline claro bajo el campo (spec ux) y NO llamar al endpoint.
+   - Mantener el flujo actual para rut válidos (normalizar antes de navegar al detalle).
+   - Estado: pendiente
+
+9. [frontend] Build
+   - `npm run build` en `app/` sin errores.
+   - Estado: pendiente
+
+10. [qa] Pruebas funcionales + veredicto `.rr/qa-veredicto.md`
+    - Vectores (algoritmo módulo 11): `11.111.111-1` (válido), `12.345.678-4`
+      (válido DV=4), DV erróneo sobre el mismo cuerpo (p.ej. `12.345.678-9`),
+      `K` mal ubicado, formato corto/largo, vacío, con puntos/guiones mixtos.
+      El fixture definitivo lo calcula QA con el propio algoritmo; ambos `lib/rut.ts`
+      deben ser idénticos.
+    - Flujo E2E en staging: login huésped con RUT válido → entra; con DV malo →
+      error inline (frontend) sin request; con formato corrupto → error claro.
+    - Criterio GO: build app y server limpios, diff dentro de la línea frontera,
+      veredicto escrito.
+    - Estado: pendiente
+
+11. [pm] Registrar cierre
+    - Actualizar DESVIACIONES/historial y confirmar que infra (compose, nginx,
+      agents, litestream) quedó intacta. NO hay promote sin "APROBAR" de Daniel.
+    - Estado: pendiente
+
+## HISTORIAL / DECISIONES
+- Escenarios previos: docs `.rr/*` del proceso NUNCA se revierten (historial).
+- Duda resuelta por defecto: validación ESTRICTA de RUT chileno (pedido literal).
+  Si Daniel solicita admitir DNI extranjero, se relaja el formato en el mismo `validarRut`.
+- La validación es QUIETO-VALIDA en frontend (bloquea submit con mensaje) y
+  HARD-400 en backend (el cliente nunca debe confiar solo en el frontend).
+- Commit sugeridos (estilo historial `rr(<scope>):`):
+  - `rr(backend): validacion RUT chileno (modulo 11) en endpoints y lookup normalizado`
+  - `rr(frontend): validacion RUT en formulario huesped /reserva`
+  - `rr(train): docs escenario 4 (spec ux, veredicto qa)`
