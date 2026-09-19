@@ -238,3 +238,52 @@ Esto rompe el ruteo del propio `plan.md` (pm NO codea; spec = ux; veredicto = qa
 
 ## Veredicto
 **GO** — escenario 4 cumple los 6 criterios: builds limpios en app y server, diff confinado a `app/src`+`server/src`, algoritmo módulo 11 correcto en los 3 vectores (incl. `12.345.678-4` **inválido**, corrigiendo el vector erróneo del plan), `guestLookup` compatible con RUTs viejos sin formato (función + HTTP E2E) y sin deps nuevas. Se recomienda resolver la observación `[MEDIA]` de lockout histórico antes de la promoción a PROD, o al menos tenerla explícitamente aceptada por Daniel.
+
+---
+
+# Adenda — Escenario 9: Revert quirúrgico RUT (commit `21b03ae`)
+
+**Fecha:** 2026-09-19
+**Commit validado:** `21b03ae rr(frontend): revert quirurgico RUT (grafico se mantiene)`
+**Branch:** `rr-feature-9-revert-selectivo`
+**Revisado por:** QA (validación independiente sobre working tree = HEAD `21b03ae`)
+**Resultado: GO ✅** — cumple los 5 criterios de Daniel.
+
+## Criterios verificados
+
+### 1) CERO rastros RUT en `app/src` y `server/src` — ✅ PASA
+- `grep -rn` sobre **ambos** árboles de source (exit 1 = sin matches) para:
+  `normalizarRut`, `validarRut`, `RUT_INVALIDO`, `lib/rut` (incl. `lib-rut`, `lib/rut`, `rut.js`, `rut.ts`).
+- Directorios `app/src/lib/` y `server/src/lib/` inexistentes. En `admin.ts` no quedan imports de `../lib/rut` ni helpers `rutInvalido`.
+- Extra: compilado pristino — `rm -rf server/dist` + `npm run build`, y `grep` sobre `server/dist` → **0 rastros**; `server/dist/lib/` ya no existe (se eliminó el artefacto stale del build previo).
+
+### 2) Gráfico de OCUPACIÓN intacto — ✅ PASA
+- Serie backend: `getOccupancySeries` en `server/src/db/reservations.ts:452` (+ `OccupancyMonth`).
+- Endpoint: `GET /api/occupancy/series` en `server/src/routes/admin.ts:91` (validación months 1-24 y property_id).
+- Chart frontend: `OccupancyChart` definido en `app/src/pages/DashboardTab.tsx:134` y renderizado en `:296`, cargado vía `api.getOccupancySeries(6, propertyId)` (`app/src/api/client.ts:129`), tipo `OccupancySeries` en `app/src/types.ts`.
+- `git diff 51cbd50 -- app/src/pages/DashboardTab.tsx app/src/api/client.ts app/src/types.ts` → **vacío** (identidad exacta con el commit del gráfico frontend, esc8).
+
+### 3) Builds app + server — ✅ PASA
+- Ejecutados con Node **v22.23.2** (`node:22-slim`, glibc = mismo runtime del Dockerfile) montando el repo; sin node en el host.
+- `server/`: `npm run build` (`tsc`) → **0 errores**.
+- `app/`: `npm run build` (`tsc -b && vite build`) → **0 errores**, 55 módulos, dist generado. Único warning: import dinámico de `firebase.ts`, **preexistente** en todos los escenarios previos.
+- Nota de higiene: el `node_modules` del host no tenía el binario nativo de rollup (issue de entorno); reparado con `npm install` (deps sin cambios). Artefactos de build (`package-lock.json`, `tsconfig.tsbuildinfo`) restaurados a HEAD; working tree queda solo con `.rr/plan.md` (mod, preexistente).
+
+### 4) Diff vs `5a133ed` en `server/` = vacío — ✅ PASA
+- `git diff 5a133ed 21b03ae -- server/` → **vacío** (exit 0) y `git diff 5a133ed -- server/` (working tree) → **vacío**; `server/` sin cambios pendientes.
+- Confirma que el servidor quedó **byte-idéntico** al commit `5a133ed rr(backend): serie ocupacion mensual` (gráfico presente, RUT ausente): `getOccupancySeries`, endpoint `occupancy/series` presentes; `rutInvalido`/`validarRut` ausentes; `guestLookup` vuelto a `guest_rut = ?` + `rut.trim()`.
+
+### 5) Veredicto de QA en `.rr/qa-veredicto.md` — ✅ PASA (esta sección)
+
+## Verificación funcional adicional (smoke contra copia QA con 4 reservas demo)
+- `guestLookup` (semántica 5a133ed restaurada, ejecutado sobre el `dist` compilado): los 4 PNR matchean con RUT exacto, con espacios y con PNR en minúsculas; RUT erróneo (`999999999`) → **NO match** (rechazo correcto).
+- `getOccupancySeries(12)`: 12 meses, `occupancy_percent` en 0-100, con datos — sep 2026 → 10/30 noches = **33%** (capacidad = días del mes × 1 propiedad activa, quirk documentado en plan).
+- Endpoint HTTP de ocupación requiere auth admin; se validó su registro en el router + la serie a nivel función (mismo criterio que escenarios previos).
+
+## Observaciones (no bloqueantes)
+- Los RUTs demo siguen almacenados con puntos/guiones (`12.345.678-9`, etc.) y ahora el lookup exige igualdad exacta post-`trim` → **el holgazán del esc4 que normalizaba el input ya no aplica** (comportamiento original pre-RUT, según pedido). Los 4 casos demo coinciden con lo guardado, así que siguen entrando.
+- La observación `[MEDIA]` del esc4 (lockout de DV malo) queda **cancelada por diseño**: al revertir la validación no hay rechazo por DV.
+- Pendiente deploy a staging y revisión visual (gate doble de UX) del gráfico de ocupación y del portal huésped.
+
+## Veredicto
+**GO** — el revert quirúrgico del commit `21b03ae` cumple los 5 criterios de Daniel: cero residuos RUT en source (y en compilado), gráfico de ocupación íntegro e idéntico al esc8, builds limpios en app+server, `server/` byte-idéntico a `5a133ed`, y veredicto QA firmado. Listo para confirmación de PM y deploy a staging; la promoción a PROD solo con "APROBAR" explícito de Daniel.

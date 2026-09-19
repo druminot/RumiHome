@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../api/client'
-import type { FinanceAnalytics, Property, SmartHomeSummary } from '../types'
+import type { FinanceAnalytics, OccupancySeries, Property, SmartHomeSummary } from '../types'
 
 const MONTHS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
@@ -130,6 +130,49 @@ function EnergyChart({ data }: { data: SmartHomeSummary['energy_daily'] }) {
   )
 }
 
+/** Barras de ocupación mensual (%) con eje Y fijo 0-100. */
+function OccupancyChart({ series }: { series: OccupancySeries['series'] }) {
+  const W = 560, H = 236, PAD_L = 34, PAD_R = 8, PAD_T = 24, PAD_B = 22
+  const plotH = H - PAD_T - PAD_B
+  const step = (W - PAD_L - PAD_R) / Math.max(series.length, 1)
+  const bw = Math.min(step * 0.5, 46)
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Ocupación mensual de los últimos 6 meses" className="chart">
+      {[0, 0.25, 0.5, 0.75, 1].map((f) => {
+        const y = H - PAD_B - f * plotH
+        return (
+          <g key={f}>
+            <line x1={30} x2={W - PAD_R} y1={y} y2={y} stroke="#E8E8ED" strokeWidth="1" />
+            <text x={28} y={y + 3} textAnchor="end" fontSize="9" fill="#86868b">
+              {Math.round(f * 100)}%
+            </text>
+          </g>
+        )
+      })}
+      {series.map((s, i) => {
+        const x = PAD_L + i * step + step / 2
+        const h = (s.occupancy_percent / 100) * plotH
+        const barTop = H - PAD_B - h
+        const mes = MONTHS_ES[Number(s.month.slice(5)) - 1]
+        return (
+          <g key={s.month}>
+            <title>{`${mes} ${s.month.slice(0, 4)}: ${s.occupancy_percent}% (${s.occupied_nights} de ${s.capacity_nights} noches)`}</title>
+            <rect x={x - bw / 2} y={barTop} width={bw} height={Math.max(h, 1)} rx="3" fill="#8CA18B" />
+            {s.occupancy_percent > 0 && (
+              <text x={x} y={barTop - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#1d1d1f">
+                {s.occupancy_percent}%
+              </text>
+            )}
+            <text x={x} y={H - 6} textAnchor="middle" fontSize="10" fill="#86868b">
+              {mes}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
 /** Barra horizontal proporcional para horas de uso. */
 function UsageBar({ minutes, maxMinutes }: { minutes: number; maxMinutes: number }) {
   const pct = maxMinutes > 0 ? Math.min((minutes / maxMinutes) * 100, 100) : 0
@@ -162,18 +205,21 @@ export default function DashboardTab({ properties }: { properties: Property[] })
   const [propertyId, setPropertyId] = useState<number | undefined>(undefined)
   const [fin, setFin] = useState<FinanceAnalytics | null>(null)
   const [smart, setSmart] = useState<SmartHomeSummary | null>(null)
+  const [occ, setOcc] = useState<OccupancySeries | null>(null)
   const [loading, setLoading] = useState(true)
   const [smartDays, setSmartDays] = useState(7)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [f, s] = await Promise.all([
+      const [f, s, o] = await Promise.all([
         api.getFinanceAnalytics(month, propertyId),
         api.getSmartHomeSummary(smartDays, propertyId),
+        api.getOccupancySeries(6, propertyId).catch(() => null),
       ])
       setFin(f)
       setSmart(s)
+      setOcc(o)
     } catch {
       setFin(null)
     } finally {
@@ -234,11 +280,24 @@ export default function DashboardTab({ properties }: { properties: Property[] })
             </div>
           </div>
 
-          {/* Serie mensual */}
-          <section className="dashboard-section">
-            <h3>Ingresos vs gastos (6 meses)</h3>
-            <IncomeChart series={fin.monthly_series} />
-          </section>
+          {/* Series históricas de 6 meses */}
+          <div className="dashboard-cols">
+            <section className="dashboard-section">
+              <h3>Ingresos vs gastos (6 meses)</h3>
+              <IncomeChart series={fin.monthly_series} />
+            </section>
+
+            {occ && (
+              <section className="dashboard-section">
+                <h3>Ocupación mensual (6 meses)</h3>
+                {occ.series.length === 0 || occ.series.every((s) => s.occupancy_percent === 0) ? (
+                  <p className="hint">Sin reservas en el período.</p>
+                ) : (
+                  <OccupancyChart series={occ.series} />
+                )}
+              </section>
+            )}
+          </div>
 
           <div className="dashboard-cols">
             {/* Gastos por categoría */}

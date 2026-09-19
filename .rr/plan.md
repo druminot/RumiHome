@@ -1,168 +1,201 @@
-# Plan: Validación RUT chileno en portal huésped /reserva (escenario 4)
+# Plan: REVERT QUIRÚRGICO — validación RUT SOLO (escenario 9)
 
-## Orden de Daniel (escenario 4)
-Agregar validación de RUT chileno en el formulario del portal huésped (`/reserva`):
-formato + dígito verificador (módulo 11). Tanto en frontend como en el endpoint
-backend. Mostrar mensaje de error claro si es inválido. NO codear en la sesión del
-pm — este documento es el entregable de ruteo y planificación.
+## Orden de Daniel (escenario 9)
+El staging (`/opt/rumihome-rr`, branch `rr-feature-9-revert-selectivo`) tiene **2 features
+activas conviviendo**:
+1. **Validación RUT chileno** (escenario 4) — `lib/rut.ts` (app y server), validación en
+   `GuestLogin.tsx`, `guestRouter`/`adminRouter`.
+2. **Gráfico de ocupación mensual** (escenario 8) — serie backend + SVG en `DashboardTab`.
 
-## Contexto (verificado en código)
-- Formulario objetivo: `app/src/pages/GuestLogin.tsx` — el "formulario de reserva"
-  del huésped es el lookup PNR + RUT (`/reserva`). El RUT se envía crudo
-  (`rut.trim()`) a `POST /api/guest/lookup` vía `app/src/api/client.ts`.
-- Endpoints backend que reciben `rut` (`server/src/routes/admin.ts`):
-  - `guestRouter` (públicos, factor de auth del huésped): `POST /guest/lookup`,
-    `POST /guest/reservation`, `PATCH /guest/reservation` — hoy solo validan no vacío.
-  - `adminRouter`: `POST /reservations` (crear — RUT obligatorio, sin más checks) y
-    `PATCH /reservations/:id` (permite cambiar `guest_rut` sin validar).
-- `guestLookup(pnr, rut)` en `server/src/db/reservations.ts:350` compara por
-  igualdad exacta `guest_rut = ?`. El formato almacenado varía (con/sin puntos,
-  guión), por lo que validar formato estricto puede romper el matching de datos
-  históricos.
-- No existe ninguna validación de RUT en el repo (ni app, ni server, ni scripts).
-- Estructura: el server es TS (`npm run build` = `tsc`, `typecheck` = `tsc --noEmit`),
-  corre en Docker (`docker-compose.rr.yml` api-rr). `server/dist` y `node_modules`
-  están en .gitignore. `app/` es Vite (`npm run build`).
-- Rutas admin: la tabla `reservations.guest_rut` guarda el RUT del pasajero; el
-  huésped se autentica con PNR + RUT. Un RUT inválido creado en admin haría
-  imposible (o trivial) ese factor de auth.
+DANIEL QUIERE: **revertir SOLO la validación RUT**. El gráfico de ocupación **DEBE
+quedarse intacto**. Este documento es el plan quirúrgico (pm NO codea). NO se toca código
+sin aprobación explícita de la tarea 1 de TAREAS.
 
-## ACLARACIÓN de alcance (duda registrada, NO bloquea)
-- Los labels actuales dicen "RUT / DNI". Con validación ESTRICTA de RUT chileno,
-  huéspedes extranjeros con DNI (pasaporte) quedarían bloqueados del lookup.
-  - DECISIÓN por defecto: cumplir el pedido literal (RUT chileno, módulo 11).
-  - Si Daniel quiere admitir DNI extranjero, se relaja el formato (el campo sigue)
-    — cambio de 1 línea documentado aquí para futuro.
-- El formulario admin (`ReservasTab.tsx`) también ingresa RUT al crear reservas.
-  Se valida en BACKEND (integridad del dato), pero el scope visual/frontend pedido
-  es solo el portal huésped. La validación visual del form admin queda como
-  backlog opcional (anotado en TAREAS).
+## Estado verificado (git, rama `rr-feature-9-revert-selectivo` @ 6dad2ef)
 
-## LÍNEA FRONTERA: qué se toca y qué NO
+| Feature | Commits | Archivos tocados |
+|---|---|---|
+| RUT (esc4) | `0710bd8` (frontend) + `dbc44d0` (backend) | `app/src/lib/rut.ts` (NUEVO), `app/src/pages/GuestLogin.tsx`, `server/src/lib/rut.ts` (NUEVO), `server/src/db/reservations.ts`, `server/src/routes/admin.ts` |
+| Gráfico (esc8) | `51cbd50` (frontend) + `5a133ed` (backend) | `app/src/api/client.ts`, `app/src/pages/DashboardTab.tsx`, `app/src/types.ts`, `server/src/db/reservations.ts`, `server/src/routes/admin.ts` |
 
-### Sí se toca
-| Área | Archivos |
+**Advertencia clave del escenario**: `server/src/db/reservations.ts` y
+`server/src/routes/admin.ts` fueron tocados por **AMBAS** features. El revert no puede ser
+un `git revert` ciego de los commits de RUT (anularía hunks del gráfico). Es un revert
+**selectivo por hunk**.
+
+## Estrategia quirúrgica
+
+Restaurar cada archivo al blob de referencia que contiene SOLO la feature gráfico
+(estado tras `5a133ed`/`51cbd50`), extrayendo únicamente los hunks RUT:
+
+| Archivo | Estado objetivo (referencia git) |
 |---|---|
-| backend | `server/src/routes/admin.ts` (guestRouter + adminRouter), `server/src/db/reservations.ts` (lookup normalizado) + **nuevo** `server/src/lib/rut.ts` |
-| frontend | `app/src/pages/GuestLogin.tsx` + **nuevo** `app/src/lib/rut.ts` (espejo del algoritmo) |
-| docs proceso | `.rr/ux-rut.md` (spec), `.rr/qa-veredicto.md`, este plan |
+| `app/src/pages/GuestLogin.tsx` | blob `904d2b4` (= estado previo a `0710bd8`, sin RUT; el gráfico nunca lo tocó) |
+| `server/src/routes/admin.ts` | estado `5a133ed` del archivo (= solo gráfico: hay `getOccupancySeries` + `/occupancy/series`, SIN validarRut ni rutInvalido) — a partir de `f02360f` AÑADIR solo hunk ocupación |
+| `server/src/db/reservations.ts` | estado `5a133ed` del archivo (= solo gráfico: hay `getOccupancySeries`, `guestLookup` ORIGINAL sin normalizarRut) |
 
-### NO se toca (prohibido/descartado)
-- `landing/`, `agent/`, `litestream.yml`, `scripts/promote.sh`, `scripts/rollback.sh`.
-- Middleware de auth Firebase (`server/src/middleware/auth.ts`, `firebase-admin.ts`).
-- Migración masiva de datos ni bases de prod. NO se reescribe `guest_rut` histórico:
-  la compatibilidad se resuelve con comparación normalizada en el lookup.
-- `app/src/pages/ReservasTab.tsx` (visual) — queda como backlog opcional.
+Equivalente verifiable: el diff final de la rama debe ser **cero** contra
+`rr`-con-gráfico-solo en los 3 archivos de código y sin residuos RUT en ningún lado.
 
-## Algoritmo (especificación única para app y server)
-`validarRut(input: string): { ok: boolean; normalizado: string; error?: string }`
-1. **Normalizar**: eliminar puntos, espacios y guión; upper; DV `k` → `K`.
-   Ej: `12.345.678-4` → `123456784`; `11.111.111-1` → `111111111`.
-2. **Formato**: deben quedar 2 a 9 caracteres alfanuméricos; el último es el DV
-   (dígito 0-9 o `K`); el cuerpo (todo menos el último) debe ser 1 a 8 dígitos.
-   Cualquier otra cosa → error de FORMATO.
-3. **Dígito verificador (módulo 11)**: pesos [2,3,4,5,6,7] cíclicos sobre el cuerpo
-   de derecha a izquierda. `suma = Σ (dígito × peso)`. `resto = suma % 11`.
-   `dv = 11 - resto`; si `dv = 11` → `0`; si `dv = 10` → `K`.
-   Comparar con el DV ingresado → si difiere, error de DÍGITO VERIFICADOR.
-4. **Estructura de salida**: `normalizado` en formato canónico `12345678-4` / `11111111-K`.
-5. Formato inválido explícito → NO calcular DV (error claro separado de "DV no coincide").
+---
 
-Norma de sincronía: `app/src/lib/rut.ts` y `server/src/lib/rut.ts` son funciones
-puras idénticas (no hay paquete compartido entre app/server). QA debe diff-arlas.
+## INVENTARIO EXACTO — LO QUE SE VA (feature RUT)
+
+### 1. `app/src/lib/rut.ts` — **BORRAR archivo completo** (38 líneas)
+- `RutErrorCode`, `ValidarRutResult`, `normalizarRut`, `calcularDv`, `validarRut`.
+- Sin referencias restantes en la app después del revert (ver verificación 2).
+
+### 2. `server/src/lib/rut.ts` — **BORRAR archivo completo** (38 líneas)
+- Mismo contenido espejo (normalizarRut, validarRut, etc.).
+- Sin referencias restantes en el server después del revert.
+
+### 3. `app/src/pages/GuestLogin.tsx` — REVERTIR a blob `904d2b4`
+Eliminar los hunks del commit `0710bd8`:
+- `import { validarRut, type RutErrorCode } from '../lib/rut'`
+- Constante `RUT_ERROR_MESSAGES`
+- Estado `rutError` + `handleRutBlur`
+- En `handleSubmit`: el early-return `if (!rut.trim()) return`, el bloque
+  `validarRut`/`rutNormalizado`, el focus de `g-rut`; volver a enviar `rut.trim()`
+  (y navegar con `rut: rut.trim()`)
+- En el input `#g-rut`: `autoComplete="off"`, `aria-invalid`, `aria-describedby`,
+  el `onBlur`, la mutación de `rutError` en `onChange`; restaurar
+  `onChange={(e) => setRut(e.target.value)}`
+- Bloque `{rutError && (<p id="rut-error" …>…)}`
+
+### 4. `server/src/db/reservations.ts` — REVERTIR SOLO hunk RUT (archivo compartido)
+- BORRAR: `import { normalizarRut } from '../lib/rut.js'` (línea 5)
+- `guestLookup` (líneas ~359-366): restaurar SQL y parámetro ORIGINALES
+  ```ts
+  WHERE UPPER(pnr) = ? AND guest_rut = ?
+  ```
+  y `.get(pnr.toUpperCase(), rut.trim())`
+  (quitar el `REPLACE(REPLACE(...))` y `normalizarRut(rut)`)
+- **NO TOCAR** `OccupancyMonth` ni `getOccupancySeries` (hunk del gráfico, líneas ~437-490).
+
+### 5. `server/src/routes/admin.ts` — REVERTIR SOLO hunks RUT (archivo compartido)
+- BORRAR: `import { validarRut } from '../lib/rut.js'` (línea 2)
+- BORRAR helper `rutInvalido` (líneas ~22-24)
+- BORRAR los **5 checks** `validarRut`/`rutInvalido`:
+  1. `POST /reservations` (tras el chequeo de obligatorio, líneas ~34-35)
+  2. `PATCH /reservations/:id` (dentro del `if (b.guest_rut !== undefined)`, líneas ~130-132)
+  3. `guestRouter POST /lookup` (líneas ~199-200)
+  4. `guestRouter POST /reservation` (líneas ~215-216)
+  5. `guestRouter PATCH /reservation` (líneas ~230-231)
+- **NO TOCAR**: import de `getOccupancySeries` ni el endpoint `GET /occupancy/series`
+  (hunk del gráfico, rutas ~90-103).
+
+---
+
+## INVENTARIO EXACTO — LO QUE QUEDA INTACTO (feature gráfico, NO REVERTIR)
+
+### 6. `app/src/pages/DashboardTab.tsx` — **INTACTO**
+- `import type { OccupancySeries }`
+- Componente `OccupancyChart` (SVG, eje Y 0-100)
+- Estado `occ`, `load()` con `Promise.all([…, api.getOccupancySeries(6, propertyId).catch(() => null)])`
+- Sección "Ocupación mensual (6 meses)" dentro del nuevo `dashboard-cols` junto a
+  "Ingresos vs gastos (6 meses)"
+
+### 7. `app/src/api/client.ts` — **INTACTO**
+- `getOccupancySeries(months, propertyId)` + `import type { OccupancySeries }`
+
+### 8. `app/src/types.ts` — **INTACTO**
+- Interfaces `OccupancyMonth` y `OccupancySeries`
+
+### 9. `server/src/db/reservations.ts` — **INTACTO en hunk gráfico**
+- Interface `OccupancyMonth` + función `getOccupancySeries` (compartido con RUT: solo
+  se revierte el hunk del punto 4)
+
+### 10. `server/src/routes/admin.ts` — **INTACTO en hunk gráfico**
+- Endpoint `GET /occupancy/series` + su import (compartido con RUT: solo se revierten
+  los hunks del punto 5)
+
+---
+
+## Resumen visual de archivos
+
+| Archivo | Acción |
+|---|---|
+| `app/src/lib/rut.ts` | ✂️ BORRAR (RUT) |
+| `server/src/lib/rut.ts` | ✂️ BORRAR (RUT) |
+| `app/src/pages/GuestLogin.tsx` | ✂️ REVERTIR completo a blob `904d2b4` (RUT) |
+| `server/src/db/reservations.ts` | 🔧 REVERTIR hunk `guestLookup`+import / ✅ MANTENER `getOccupancySeries` |
+| `server/src/routes/admin.ts` | 🔧 REVERTIR import `validarRut`+`rutInvalido`+5 checks / ✅ MANTENER `/occupancy/series` |
+| `app/src/pages/DashboardTab.tsx` | ✅ INTACTO |
+| `app/src/api/client.ts` | ✅ INTACTO |
+| `app/src/types.ts` | ✅ INTACTO |
+
+## NO se toca (esta orden)
+- `.rr/*` históricos (`ux-rut.md`, `qa-veredicto.md` del esc4, docs del esc8): los docs
+  del proceso NUNCA se revierten. Este plan reemplaza el `plan.md` del esc4 — el resto
+  queda como historial.
+- `app/tsconfig.tsbuildinfo` (artefacto del build, tocado por esc8) — no es código de
+  feature, se deja.
+- `landing/`, `agent/`, `agent-dev/`, `litestream.yml`, `scripts/`, auth Firebase,
+  infra compose/nginx, DBs de staging.
 
 ## RUTEO (reglas del entorno RR)
-- **pm**: APLICA — este plan (no codea).
-- **supervisor**: APLICA — audita que el cambio NO toque infra, auth ni agents.
-- **ux**: APLICA (UI+datos → ux+frontend+backend; cambio de formulario con mensajes
-  de error). Emite spec `.rr/ux-rut.md` antes de codificar y revisa el staging
-  post-deploy (gate doble).
-- **frontend**: APLICA — validación en `GuestLogin.tsx` + `app/src/lib/rut.ts`;
-  `npm run build` debe pasar.
-- **backend**: APLICA — `server/src/lib/rut.ts`, validación en guestRouter +
-  adminRouter, lookup con normalización; `npm run build` y smoke test contra SQLite staging.
-- **qa**: APLICA (siempre) — diff, build limpio, casos de prueba, veredicto GO/NO-GO.
-- **backlog (NO en este escenario)**: validación visual del form admin, admisión
-  opcional de DNI extranjero, limpieza de RUTs históricos no normalizados.
+- **pm**: APLICA — este documento (no codea).
+- **supervisor**: APLICA — audita que el revert NO haya arrancado hunks del gráfico y
+  no haya tocado infra.
+- **ux**: NO emite spec nueva (se restaura UX ya spec'ada del pre-RUT; revisión visual
+  post-deploy queda en QA). Si QA detecta deriva visual en `GuestLogin`, escala.
+- **frontend**: APLICA — puntos 1, 3 y build de `app/` (`npm run build`).
+- **backend**: APLICA — puntos 2, 4, 5 y build/typecheck de `server/` + smoke contra
+  SQLite de staging.
+- **qa**: APLICA (siempre) — verificación anti-residuos, diff vs estado objetivo,
+  pruebas funcionales, veredicto GO/NO-GO.
 
 ## TAREAS
-1. [ux] Spec `.rr/ux-rut.md` (antes de codificar)
-   - Mensaje de error claro inline bajo el campo RUT, usando `.field` + `.alert error`
-     existentes (sin estilos nuevos) + `role="alert"`/aria-invalid.
-   - Constate de sintaxis: hint del placeholder `12.345.678-9`; diferencias de copy
-     entre "formato inválido" y "dígito verificador no coincide"; maxLength y
-     normalización de puntos/guiones al escribir (recomendación, no obligatorio).
-   - El botón queda activo pero el submit se bloquea mostrando el error inline.
+1. **Confirmación previa** (regla backlog): pedir OK de Daniel sobre esta tarea
+   específica ("revertir SOLO validación RUT") ANTES de editar cualquier archivo de código.
+   - Estado: EN ESPERA DE OK
+
+2. [backend] Revert hunk RUT en `server/src/db/reservations.ts` (punto 4)
    - Estado: pendiente
 
-2. [backend] Crear `server/src/lib/rut.ts`
-   - Funciones puras `normalizarRut`, `calcularDv` y `validarRut` según el algoritmo.
-   - Estados de error: `RUT_INVALIDO_FORMATO` y `RUT_INVALIDO_DV`.
+3. [backend] Revert hunks RUT en `server/src/routes/admin.ts` (punto 5) + borrar
+   `server/src/lib/rut.ts` (punto 2)
    - Estado: pendiente
 
-3. [backend] Validar en `guestRouter` (`admin.ts`)
-   - `POST /guest/lookup`, `POST /guest/reservation`, `PATCH /guest/reservation`:
-     antes del lookup, `validarRut(rut)`; si no ok → `400 { error: 'RUT inválido:
-     verifica el formato y el dígito verificador' }` (mensaje claro, no genérico).
-   - Enviar el RUT **normalizado** a `guestLookup` (compatibilidad de matching).
+4. [backend] `npm run typecheck` + `npm run build`; smoke: `guestLookup` matchea
+   reserva histórica con RUT con/sin puntos, y `GET /api/occupancy/series` responde
+   200 con el payload esperado.
    - Estado: pendiente
 
-4. [backend] Validar y normalizar en `adminRouter`
-   - `POST /reservations`: si `guest_rut` no pasa `validarRut` → 400 con el mismo
-     mensaje claro; guardar en la DB el RUT **normalizado** (`12345678-4`).
-   - `PATCH /reservations/:id`: aplicar la misma validación cuando cambia `guest_rut`.
+5. [frontend] Revert `app/src/pages/GuestLogin.tsx` (punto 3) + borrar
+   `app/src/lib/rut.ts` (punto 1)
    - Estado: pendiente
 
-5. [backend] Lookup con normalización (`db/reservations.ts`)
-   - `guestLookup` debe comparar por RUT normalizado (sin puntos/guiones/espacios,
-     upper) para no romper matching de filas históricas con formatos mixtos.
-   - NO migrar datos; limpieza normalizada queda como backlog.
+6. [frontend] `npm run build` en `app/`.
    - Estado: pendiente
 
-6. [backend] Build y smoke test
-   - `npm run typecheck` y `npm run build` en `server/` sin errores.
-   - Smoke contra SQLite de staging (`data/rumihome.db`): crear reserva con RUT
-     válido (200/201), con RUT de DV malo (400), con formato corrupto (400); lookup
-     huésped con RUT con y sin puntos (debe matchear).
+7. [qa] Verificación anti-colateral (CRITERIOS DE ÉXITO, ver abajo) + veredicto en
+   `.rr/qa-veredicto.md`.
    - Estado: pendiente
 
-7. [frontend] Crear `app/src/lib/rut.ts` (espejo idéntico del algoritmo backend)
+8. [pm] Registrar cierre y dejar listo para deploy staging (NO promote sin "APROBAR").
    - Estado: pendiente
 
-8. [frontend] Validar en `GuestLogin.tsx`
-   - Validar `rut` antes de llamar a `api.guestLookup`; si inválido → mensaje de
-     error inline claro bajo el campo (spec ux) y NO llamar al endpoint.
-   - Mantener el flujo actual para rut válidos (normalizar antes de navegar al detalle).
-   - Estado: pendiente
-
-9. [frontend] Build
-   - `npm run build` en `app/` sin errores.
-   - Estado: pendiente
-
-10. [qa] Pruebas funcionales + veredicto `.rr/qa-veredicto.md`
-    - Vectores (algoritmo módulo 11): `11.111.111-1` (válido), `12.345.678-4`
-      (válido DV=4), DV erróneo sobre el mismo cuerpo (p.ej. `12.345.678-9`),
-      `K` mal ubicado, formato corto/largo, vacío, con puntos/guiones mixtos.
-      El fixture definitivo lo calcula QA con el propio algoritmo; ambos `lib/rut.ts`
-      deben ser idénticos.
-    - Flujo E2E en staging: login huésped con RUT válido → entra; con DV malo →
-      error inline (frontend) sin request; con formato corrupto → error claro.
-    - Criterio GO: build app y server limpios, diff dentro de la línea frontera,
-      veredicto escrito.
-    - Estado: pendiente
-
-11. [pm] Registrar cierre
-    - Actualizar DESVIACIONES/historial y confirmar que infra (compose, nginx,
-      agents, litestream) quedó intacta. NO hay promote sin "APROBAR" de Daniel.
-    - Estado: pendiente
+## CRITERIOS DE ÉXITO (automáticos, lista de chequeo QA)
+1. **Residuos cero de RUT**: `grep -rn "normalizarRut\|validarRut\|RutErrorCode\|lib/rut" app/src server/src` → **0 matches**.
+2. **Diff del gráfico intacto**: `git diff` de `DashboardTab.tsx`, `api/client.ts`,
+   `types.ts` vs `5a133ed`/`51cbd50` → **vacío**.
+3. **Diff de archivos compartidos**: `git diff 5a133ed` sobre `admin.ts` y
+   `reservations.ts` → **vacío** (identidad exacta con el "solo gráfico").
+4. **`GuestLogin.tsx`** idéntico al blob `904d2b4` (`git diff` contra `0710bd8^` → vacío).
+5. Build app + server limpios; smoke staging: login huésped con RUT sin puntos entra
+   (lookup original), gráfico de ocupación se renderiza en `/admin`.
 
 ## HISTORIAL / DECISIONES
-- Escenarios previos: docs `.rr/*` del proceso NUNCA se revierten (historial).
-- Duda resuelta por defecto: validación ESTRICTA de RUT chileno (pedido literal).
-  Si Daniel solicita admitir DNI extranjero, se relaja el formato en el mismo `validarRut`.
-- La validación es QUIETO-VALIDA en frontend (bloquea submit con mensaje) y
-  HARD-400 en backend (el cliente nunca debe confiar solo en el frontend).
-- Commit sugeridos (estilo historial `rr(<scope>):`):
-  - `rr(backend): validacion RUT chileno (modulo 11) en endpoints y lookup normalizado`
-  - `rr(frontend): validacion RUT en formulario huesped /reserva`
-  - `rr(train): docs escenario 4 (spec ux, veredicto qa)`
+- **Escenario 9** (revert selectivo): se elige revert por **hunk** (no commit completo)
+  porque `reservations.ts` y `admin.ts` están compartidos con la feature gráfico.
+- La comparación RUT vuelve a igualdad simple `guest_rut = ?` + `rut.trim()` (estado
+  funcional previo al esc4). No se migra/normaliza datos.
+- `validarRut` deja de existir en app y server; ningún endpoint lo vuelve a exigir.
+- El gráfico de ocupación (esc8) permanece íntegro e intocado: serie backend
+  `getOccupancySeries`, endpoint `GET /api/occupancy/series`, `OccupancyChart` SVG,
+  sección en Dashboard y tipos.
+- Commits sugeridos (estilo historial `rr(<scope>):`):
+  - `rr(backend): revert validacion RUT (queda grafico ocupacion intacto)`
+  - `rr(frontend): revert validacion RUT en portal huesped`
+  - `rr(train): docs escenario 9 (plan reversion, veredicto QA)`
