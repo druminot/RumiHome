@@ -210,3 +210,41 @@ Riesgo concreto: el portal huésped usa esas mismas clases (`.auth-wrapper`, `.a
 
 ## Veredicto
 **GO** — la remediación del NO-GO quedó completa en `16818ec`: wrappers con `admin-theme`, 100% de los overrides oscuros prefijados bajo `.admin-theme` y cleanup de `data-theme` al desmontar; build y alcance siguen verdes. Listo para deploy a staging y revisión visual del role ux; la promoción a PROD solo se ejecuta con la aprobación explícita de Daniel ("APROBAR").
+
+---
+
+# Adenda — Escenario 1: Rollback modo oscuro (commit `effd277`)
+
+**Fecha:** 2026-09-19
+**Commit validado:** `effd277 rr(frontend): rollback modo oscuro (escenario 1)`
+**Branch:** `rr-feature-1-modo-oscuro`
+**Tag de referencia:** `scenario-1-base` (= `origin/rr`, estado previo al modo oscuro)
+**Entorno:** staging espejo (app en `/rr/app/`)
+
+## Resultado: GO ✅ (reversión completa, idéntica a `scenario-1-base`)
+
+## Criterios verificados (rollback)
+
+### 1) `git diff scenario-1-base -- app/` vacío — ✅ PASA
+- `git diff scenario-1-base -- app/` → **0 líneas** (working tree).
+- Lista de archivos bajo `app/` idéntica entre `scenario-1-base` y `effd277` (`git ls-tree -r` → `SAME FILE LIST`).
+- `git diff scenario-1-base effd277 --stat` → solo 3 docs de coordinación (`.rr/plan.md`, `.rr/qa-veredicto.md`, `.rr/ux-modo-oscuro.md`); nada de producto. La SPA quedó byte-a-byte como antes del modo oscuro.
+
+### 2) Sin rastros de modo oscuro en `app/` — ✅ PASA
+- Grep `ThemeToggle|useTheme|data-theme` recursivo sobre `app/` (incluye `src/`, `index.html` y `dist/`): **0 archivos con coincidencias**.
+- Eliminados los 2 archivos nuevos (`ThemeToggle.tsx`, `useTheme.ts`) y el script inline anti-FOUC de `app/index.html`; `styles.css` y las 3 páginas (`AdminDashboard`, `AdminLogin`, `DashboardTab`) restaurados a base.
+
+### 3) Build en `app/` — ✅ PASA
+- `docker compose -f docker-compose.rr.yml build app-rr` → imagen construida OK (etapa build `npm install && npm run build` del Dockerfile con los args del espejo `VITE_ADMIN_PATH=/rr/app/admin`, `VITE_GUEST_PATH=/rr/app/reserva`, `VITE_BASE_PATH=/rr/app/`). Solo warnings no bloqueantes ya conocidos.
+
+### 4) Infra del espejo intacta — ✅ PASA
+- `git diff scenario-1-base effd277 -- docker-compose.rr.yml docker-compose.yml landing/ server/ scripts/ litestream.yml` → **vacío**.
+- Working tree sin cambios en infra (`git status --porcelain` sobre esos paths → vacío): `docker-compose.rr.yml`, `landing/` y `server/` presentes sin diffs. La estructura `/rr/` + `/rr/app/` del espejo se conserva (orden explícita: no se toca).
+
+### 5) Veredicto actualizado — ✅ PASA
+
+## Observaciones (no bloqueantes)
+- El unico cambio fuera del commit es `.rr/plan.md` (doc de coordinación del pm, sin commitear): reescrito como plan de ROLLBACK del escenario 1. No impacta código ni infra.
+
+## Veredicto
+**GO** — el rollback cumple los 5 criterios de Daniel: `app/` idéntico a `scenario-1-base`, cero rastros de `ThemeToggle`/`useTheme`/`data-theme`, build OK e infra del espejo intacta. Puede deployarse a staging para revisión visual; la promoción a PROD solo se ejecuta con la aprobación explícita de Daniel ("APROBAR").

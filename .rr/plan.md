@@ -1,129 +1,124 @@
-# Plan: Modo oscuro en el panel `/admin` (feature 1)
+# Plan: ROLLBACK escenario 1 — reversión completa del modo oscuro
 
-## Orden de Daniel (feature 1)
-Agregar un botón de modo oscuro en el panel `/admin`. Debe alternar entre tema claro y
-oscuro, **persistir la preferencia** y **aplicar en todas las páginas del panel**.
+## Orden de Daniel (escenario 1 — rollback)
+"Revertir COMPLETAMENTE el modo oscuro del espejo. El código debe volver **idéntico** al
+tag `scenario-1-base`. La infra del espejo (estructura `/rr/` + `/rr/app/`, compose) **NO
+se toca**."
 
-## Interpretación de alcance
+## Estado actual (análisis previo, hecho por pm)
 
-### SÍ entra
-- Todo el área admin de la SPA (`app/`):
-  - `/admin` → `AdminLogin.tsx` (entrada del panel).
-  - `/admin/panel` → `AdminDashboard.tsx` + sus tabs `ReservasTab`, `DashboardTab`, `GastosRedesTab`.
-- Botón de alternancia (sol/luna) visible en el área admin.
-- Persistencia en el **cliente** (`localStorage`) — NO requiere backend.
+| Ítem | Valor |
+|---|---|
+| Rama actual | `rr-feature-1-modo-oscuro` (worktree limpio) |
+| HEAD actual | `4102a7a` (docs escenario 1) |
+| Tag objetivo | `scenario-1-base` (estado previo al modo oscuro) |
+| Commit modo oscuro admin | `6fada5c` + `16818ec` (fix NO-GO) |
+| Commit docs escenario | `4102a7a` |
 
-### NO entra (fuera de alcance, prohibido tocar)
-- Portal huésped (`/reserva` → `GuestLogin.tsx`, `GuestReservation.tsx`).
-- Landing pública (`landing/`).
-- `server/`, `agent/`, `scripts/`, `litestream.yml`, `docker-compose.rr.yml`, nginx, credenciales.
-- Sync del tema entre dispositivos / preferencia en DB (no pedido; evita tocar API).
+### Qué cambió entre `scenario-1-base` y HEAD (modo oscuro)
+Solo **10 archivos**: 3 de coordinación (`.rr/*`) + 7 de producto (`app/*`):
 
-### Supuestos APROBADOS por Daniel (2026-09-19) — quedan fijos y no se reabren
-1. La preferencia es **por dispositivo** (localStorage), no por usuario en la DB.
-2. La pantalla de login admin (`/admin`) **incluye** el toggle (no hay salto claro→oscuro
-   al entrar al panel; el tema también se respeta ahí).
-3. Tema por defecto = **claro** cuando no hay preferencia guardada.
+| Archivo | Cambio |
+|---|---|
+| `app/index.html` | script inline anti-FOUC (lee `rumihome.theme`) |
+| `app/src/styles.css` | tokens `:root[data-theme='dark']`, overrides `.admin-theme`, vars `--chart-*` |
+| `app/src/pages/DashboardTab.tsx` | colores SVG hardcodeados → `var(--chart-*)` |
+| `app/src/pages/AdminDashboard.tsx` | monta `ThemeToggle` en topbar |
+| `app/src/pages/AdminLogin.tsx` | monta `ThemeToggle` en login |
+| `app/src/components/ThemeToggle.tsx` | **NUEVO** (toggle sol/luna) |
+| `app/src/hooks/useTheme.ts` | **NUEVO** (hook + localStorage) |
+
+Resultado del análisis de infra (crítico):
+```
+git diff scenario-1-base..HEAD -- docker-compose.rr.yml landing/ app/Dockerfile \
+  app/vite.config.ts app/package.json docker-compose.yml scripts/ server/ litestream.yml agent/  → 0 líneas
+```
+**La infra del espejo ya es byte-idéntica entre el tag y HEAD.** O sea: revertir el modo
+oscuro (los 7 archivos de `app/*`) NO toca infra por definición. Nginx vive fuera del repo
+(`/etc/nginx`) y no se menciona en ningún commit del escenario.
+
+## LÍNEA FRONTERA del rollback
+
+### SÍ se revierte (→ estado `scenario-1-base`)
+- Los **7 archivos `app/*`** del modo oscuro (los 5 modificados se restauran, los 2 nuevos
+  se eliminan).
+- Resultado exigido: `git diff scenario-1-base -- app/ landing/` = **vacío**.
+
+### NO se toca (prohibido en este rollback)
+- Infra del espejo: estructura `/rr/` (landing) + `/rr/app/` (SPA), `docker-compose.rr.yml`,
+  `app/vite.config.ts`, `app/Dockerfile`, nginx (fuera de repo), credenciales, DB.
+- `server/`, `agent/`, `scripts/`, `litestream.yml` (no tienen diff con el tag → intocables).
+- Portal huésped y landing (ya son idénticos al tag → ni tocarlos para "verificar").
+
+### Tratamiento de `.rr/*` (docs de coordinación, NO son código ni infra)
+- `plan.md` (este archivo): se conserva — documenta el rollback.
+- `ux-modo-oscuro.md` y `qa-veredicto.md` del escenario: **quedan como historial** de
+  coordinación. Si se exige árbol 100 % idéntico al tag, opcionalmente se restauran/eliminan,
+  pero el requisito de Daniel ("el código") aplica a código de producto `app/` + `landing/`.
 
 ## RUTEO
 
 | Agente | Aplica | Motivo |
 |---|---|---|
-| pm | **APLICA** | Clarifica, decide ruteo y redacta este plan. **NO codea.** |
-| supervisor | **APLICA** | Audita que no se toquen portal huésped, landing, `server/`, `agent/`, compose ni nginx. |
-| ux | **APLICA (primero)** | Es un **cambio de estilo global** → por regla, ux va SIEMPRE antes de frontend. Produce la paleta oscura y la spec de UI (`.rr/ux-modo-oscuro.md`). |
-| frontend | **APLICA** | Implementa el toggle, el hook de tema y los overrides de CSS en `app/`. |
-| backend | **NO APLICA** | No hay cambios de datos ni endpoints: la persistencia es client-side (localStorage). |
-| qa | **APLICA (siempre)** | Build, revisión de diff, pruebas funcionales y veredicto GO/NO-GO en `.rr/qa-veredicto.md`. |
+| pm | **APLICA** | Clarifica, analiza el diff, decide ruteo y redacta este plan. **NO codea.** |
+| supervisor | **APLICA** | Audita que el revert NO toque infra (compose, nginx, estructura `/rr/`, DB) ni `server/`/`agent/`; que el diff final respecto al tag esté limitado a `.rr/`. |
+| ux | **APLICA (después del revert)** | Gate visual post-deploy: el panel `/rr/app/admin` vuelve a la estética clara estándar, sin toggle ni rastro de tema oscuro. |
+| frontend | **APLICA** | Ejecuta el revert de código en `app/` y deja `npm run build` limpio. |
+| backend | **NO APLICA** | No hay cambios de datos ni endpoints: el modo oscuro era 100 % client-side. |
+| qa | **APLICA (siempre)** | Verifica byte-identidad de `app/`+`landing/` contra el tag, que la infra no fue tocada, build limpio y escribe veredicto en `.rr/qa-veredicto.md`. |
 
-**Reglas de ruteo aplicadas:** feature solo-UI → `ux + frontend`; es cambio de estilo global
-→ `ux` primero; "persistir" NO implica datos de servidor → `backend` no aplica; QA siempre.
+**Reglas de ruteo aplicadas:** cambio de estilo → ux siempre revisa; solo UI → frontend;
+sin datos → backend no aplica; QA siempre.
 
 ## TAREAS
 
-1. **[ux] Spec de UI y paleta oscura** — `.rr/ux-modo-oscuro.md`
-   - Fuente de verdad del diseño: `app/src/styles.css` (tokens `:root` actuales).
-   - Definir paleta oscura equivalente a los tokens existentes (`--bg`, `--text`, `--soft`,
-     `--tile`, `--white`, `--gray`, `--muted`, `--dark`, `--accent*`, `--sage*`, `--error`).
-   - Definir tratamiento del botón toggle (ubicación en `admin-topbar`, íconos/aria-label,
-     estados hover/focus/activo) y su comportamiento en login.
-   - Garantizar contraste **WCAG AA** en ambos temas.
-   - Inventariar los colores **hardcodeados** que hoy impiden el dark mode (ver inventario abajo)
-     e indicar su equivalente oscuro.
-   - Estado: **completada (2026-09-19)** → spec en `.rr/ux-modo-oscuro.md`. Incluye ~30 colores duros extra no inventariados, fix de botones (`--white` sobrecargado) y las discrepancias abajo.
+1. **[pm] Snapshot previo al rollback** — registrar SHA `4102a7a` y opcionalmente crear tag
+   `scenario-1-modo-oscuro` en HEAD para poder re-aplicar el dark mode si se pide. Estado: **hecho (plan)**.
 
-**Hallazgos ux (input crítico para frontend):**
-- `--white` está sobrecargado (superficie + texto `.btn`): en oscuro los botones quedarían ilegibles → `.btn { color:#fff }`.
-- `#1d1d1f` (leyendas SVG de gráficos) es invisible en oscuro → `#F5F5F7`.
-- **Alcance:** `data-theme` debe aplicarse SOLO en rutas admin — el portal huésped usa los mismos tokens y se oscurecería sin permiso si se aplicara global.
-- Inventario de plan.md incompleto vs código real (p.ej. falta `.alert.info` borde `#d2d2d7`); la spec ux manda.
+2. **[frontend] Revertir el código de `app/` al tag**
+   - Método recomendado (quirúrgico, conserva `.rr/` como historial):
+     ```
+     git restore --source=scenario-1-base -- app/index.html app/src/styles.css \
+       app/src/pages/AdminDashboard.tsx app/src/pages/AdminLogin.tsx app/src/pages/DashboardTab.tsx
+     git rm app/src/components/ThemeToggle.tsx app/src/hooks/useTheme.ts
+     ```
+   - Método total (árbol EXACTO al tag, p.ej. si se prefiere cero ruido): `git reset --hard scenario-1-base`.
+     ⚠️ También deja `.rr/*` en el estado del tag; implica re-escribir luego este plan como cambio local.
+   - Verificación inmediata:
+     ```
+     git diff scenario-1-base -- app/ landing/          # → vacío
+     git status                                          # solo .rr (docs) y/o nuevos cambios de este plan
+     ```
+   - Commit sugerido (rama actual `rr-feature-1-modo-oscuro`): `rr(feat): reversion modo oscuro (escenario 1)`.
+     Alternativa permitida: rama `rr-feature-1-rollback`.
 
-2. **[frontend] Hook de tema + persistencia**
-   - Nuevo hook (p. ej. `app/src/hooks/useTheme.ts`): lee/escribe `localStorage`
-     (clave propuesta `rumihome.theme`, valores `light` | `dark`), expone `theme` y `toggleTheme`,
-     y aplica `data-theme` en `document.documentElement`.
-   - Evitar **FOUC**: aplicar el tema antes del primer render (script inline en `app/index.html`
-     o inicialización en `main.tsx`).
-   - Estado: **pendiente**
+3. **[frontend] Build** — `cd app && npm run build` debe pasar sin referencias a
+   `ThemeToggle`, `useTheme`, `data-theme`, `rumihome.theme`, `--chart-*` (grep de control).
 
-3. **[frontend] Botón de alternancia**
-   - Nuevo componente `app/src/components/ThemeToggle.tsx` (accesible: `aria-pressed`/`aria-label`,
-     foco visible ya cubierto por `:focus-visible` global).
-   - Montarlo en `AdminDashboard.tsx` (topbar) y en `AdminLogin.tsx` según supuesto 2.
-   - Estado: **pendiente**
+4. **[ux] Revisión visual en staging** — `/rr/app/admin` y `/rr/app/admin/panel`: sin toggle
+   sol/luna, tema claro estándar en login + 3 tabs, sin residuos oscuros ni leyendas invisibles.
 
-4. **[frontend] Soporte de tema oscuro en CSS**
-   - Agregar bloque `:root[data-theme='dark'] { ... }` con la paleta definida por ux.
-   - Refactorizar los colores hardcodeados que rompen el tema (reemplazar por tokens o
-     variantes oscuras): topbar `rgba(250,249,246,.78)` y borde inferior; fondos de `.badge.*`;
-     `.alert.*`; hover de filas/tabs/subtabs; `.cal-day`; colores de texto de `DashboardTab.tsx`
-     (SVG de gráficos).
-   - Estado: **pendiente**
+5. **[qa] Validación final** — diff `app/`+`landing/` vacío vs tag; `git show --stat` del
+   commit de rollback limitado a `app/*` (más `.rr/` si aplica); build limpio; veredicto
+   GO/NO-GO en `.rr/qa-veredicto.md`. Con GO → deploy a staging (`docker compose -f docker-compose.rr.yml up -d --build`).
 
-5. **[frontend] Verificación local + build**
-   - `npm run build` en `app/` debe pasar limpio.
-   - Probar alternancia, persistencia tras recarga y navegación entre los 3 tabs.
-   - Estado: **pendiente**
+6. **[supervisor] Auditoría de infra** — confirmar por escrito que `docker-compose.rr.yml`,
+   estructura `/rr/`, `scripts/`, `server/`, `agent/`, `litestream.yml` no aparecen en el
+   diff del rollback. Si detecta desvío: `.rr/HALT` + informe a Daniel.
 
-6. **[ux] Revisión visual en staging post-deploy (gate doble)**
-   - Criterios: `/rr/app/admin` y `/rr/app/admin/panel` (login + 3 tabs) se ven correctos en
-     claro y oscuro, con contraste AA y sin elementos ilegibles ni flashes de tema.
-   - Estado: **pendiente**
+## Criterios de aceptación (rollback escenario 1)
+- [ ] `git diff scenario-1-base -- app/ landing/` = **vacío** (código idéntico al tag).
+- [ ] Sin rastro de modo oscuro en `app/` (grep `ThemeToggle`, `useTheme`, `data-theme`,
+      `rumihome.theme`, `--chart-*` sin resultados).
+- [ ] Infra intocada: `docker-compose.rr.yml`, estructura `/rr/` + `/rr/app/`, nginx, DB.
+- [ ] `npm run build` limpio en `app/`.
+- [ ] Estética clara estándar en `/rr/app/admin` y `/rr/app/admin/panel` (ux).
+- [ ] QA GO en `.rr/qa-veredicto.md`.
 
-7. **[qa] Validación final**
-   - `npm run build` limpio; diff limitado a `app/*` (y `.rr/*`); nada en `landing/`,
-     `server/`, `agent/`, `scripts/`, `docker-compose.rr.yml`, nginx, `litestream.yml`.
-   - Pruebas funcionales: toggle cambia tema, persiste tras recarga, aplica en los 3 tabs.
-   - Veredicto GO/NO-GO en `.rr/qa-veredicto.md`.
-   - Estado: **pendiente**
-
-8. **[pm] Coordinar iteraciones y registrar desviaciones**
-   - Máx. 3 iteraciones; si QA NO-GO o `CAMBIOS:`, vuelve al equipo en el mismo branch.
-   - Estado: **pendiente**
-
-## Inventario de colores hardcodeados a revisar (input para ux)
-En `app/src/styles.css` (además de los tokens `:root`):
-- `.admin-topbar` bg `rgba(250,249,246,0.78)` y borde `rgba(34,34,34,0.08)`.
-- `.alert.error|ok|info` (fondos/textos).
-- `.badge.pendiente|confirmada|cancelada`.
-- Tablas: `border-bottom #EBEBEB`, `tbody tr:hover #F7F7F7`.
-- `.main-tab`, `.subtab` (hover/activo).
-- Dashboard: `.dashboard-section` bg `#fff`, bordes `#EBEBEB`, h4 `#222222`.
-- Calendario: `.cal-day`, `.cal-day.libre`, `.legend.libre::before`.
-- Modal overlay `rgba(34,34,34,0.45)` y sombras.
-En `app/src/pages/DashboardTab.tsx` (SVG): `#E8E8ED`, `#008234`, `#0071e3`, `#86868b`, `#1d1d1f`.
-
-## Criterios de aceptación (global)
-- [ ] Botón de modo oscuro visible y operable en el panel `/admin`.
-- [ ] Alterna claro↔oscuro de inmediato en todas las páginas del panel.
-- [ ] La preferencia persiste tras recargar y navegar entre tabs.
-- [ ] Sin flash de tema incorrecto al cargar.
-- [ ] Contraste AA en ambos temas.
-- [ ] `npm run build` OK; sin tocar huésped/landing/backend/infra.
-
-## HISTORIAL (iteraciones previas, se conserva como aprendizaje)
+## HISTORIAL (se conserva como aprendizaje)
 - Iteración 1: PM codeó directamente (violación de rol) → PM prohibido de codear.
-- Iteración 1: plan.md no existía al iniciar frontend → regla "plan antes de asignar".
-- Iteración 1: permisos endurecidos (external_directory deny, `/root` y `/etc/nginx` bloqueados).
-- Iteración 2: PM comprometido a NO codear (plan escrito ANTES de asignar).
+- Iteración 2: plan escrito ANTES de asignar; PM no codea.
 - Iteración 3: reversión total de la estética 90s (landing + SPA); infra `/rr/` intacta.
+- Escenario 1: modo oscuro del panel `/admin` implementado, corregido por NO-GO de QA, y
+  ahora **revertido por orden de Daniel** al estado `scenario-1-base`. Lección: la infra
+  del espejo es byte-idéntica entre tag y HEAD → el rollback de código no la afecta.
