@@ -58,7 +58,15 @@ if ! docker compose up -d --build > /tmp/promote-build.log 2>&1; then
 fi
 
 # 5. Healthcheck
-sleep 10
+sleep 12
+
+# Contenedores reiniciados -> IPs internas Docker cambiaron. Ejecutar el fix
+# estandar (regenera proxy_pass con las IPs actuales y reload nginx).
+if [ -x /usr/local/bin/fix-nginx-ips.sh ]; then
+  /usr/local/bin/fix-nginx-ips.sh > /dev/null 2>&1 || true
+fi
+
+sleep 5
 HEALTH_OK=1
 for check in "https://rumihome.io:200" "https://rumihome.io/admin:200" "https://rumihome.io/api/reservations:401"; do
   url="${check%:*}"; expected="${check##*:}"
