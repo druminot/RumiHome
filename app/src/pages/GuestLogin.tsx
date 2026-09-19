@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
-import RetroScroller from '../components/RetroScroller'
 
 const GUEST_PATH = import.meta.env.VITE_GUEST_PATH ?? '/reserva'
 
@@ -30,7 +29,6 @@ export default function GuestLoginPage() {
 
   return (
     <div className="auth-wrapper">
-      <RetroScroller color="marquee" />
       <div className="auth-card">
         <Link className="logo" to="/">rumi<span>home</span></Link>
         <p className="subtitle">Consulta tu reserva</p>
@@ -58,7 +56,7 @@ export default function GuestLoginPage() {
             />
           </div>
           <button className="btn full" type="submit" disabled={loading}>
-            {loading ? 'Buscando…' : '.:: VER MI RESERVA ::.'}
+            {loading ? 'Buscando…' : 'Ver mi reserva'}
           </button>
         </form>
       </div>
