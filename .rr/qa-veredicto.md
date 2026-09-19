@@ -185,3 +185,52 @@ Esto rompe el ruteo del propio `plan.md` (pm NO codea; spec = ux; veredicto = qa
 
 ## Veredicto
 **GO** — escenario 3 re-ejecutado cumple los 5 criterios solicitados por Daniel. Listo para deploy a staging, revisión visual de UX (gate doble) y promoción a PROD solo con "APROBAR" explícito.
+
+---
+
+# Adenda — Escenario 5: Migración idempotente `guest_phone` (commit `fa4f961`)
+
+**Fecha:** 2026-09-19
+**Commit validado:** `fa4f961 rr(backend): migracion idempotente guest_phone`
+**Branch:** `rr-feature-5-telefono`
+**Revisado por:** QA (validación independiente)
+**Resultado: GO ✅** — los 6 criterios de Daniel se cumplen.
+
+## Criterios verificados
+
+### 1) Build de `server/` — ✅ PASA
+- `npm run build` (`tsc`) en `server/` con Node v22 (mismo runtime del Dockerfile) → **EXIT 0**, sin errores.
+- El `dist/` local generado es **idéntico** al `dist/` dentro del container `rumihome-api-rr` (md5 `f22e4daf…` para `dist/db/reservations.js`), lo que confirma que la imagen desplegada corresponde al commit `fa4f961`.
+
+### 2) Migración IDEMPOTENTE (2 ejecuciones) — ✅ PASA
+Probado sobre una **copia** de `.rr/qa-copy.db` (sin tocar la DB de staging), ejecutando el módulo real `dist/db/reservations.js` via `docker exec`:
+
+- **Caso legacy** (DB PRE-EXISTENTE sin columna: se simuló eliminando `guest_phone` de una copia):
+  - **Ejecución 1**: columna `guest_phone` añadida **1 sola vez**; `COUNT` = 4; `integrity_check` = ok.
+  - **Ejecución 2** (idempotencia): **sin duplicado** de columna (sigue 1), `COUNT` = 4, `integrity_check` = ok → no rompe y no duplica.
+- **Caso no-op** (qa-copy tal cual, columna ya existente, como en staging): 2 ejecuciones → 1 columna, `COUNT` = 4, integridad ok (el guard `cols.some(c => c.name === 'guest_phone')` funciona).
+
+### 3) Conteo de reservas = 4 ANTES y DESPUÉS — ✅ PASA
+- `qa-copy.db` ANTES: **4** (y 1 columna `guest_phone`).
+- Después de la migración (caso legacy y no-op): **4**.
+- Comparación fila a fila (`pnr, guest_name, guest_rut, check_in, check_out, guests, status`): qa-copy == post-migración (no-op) y == legacy-migrada → **idéntico, sin pérdida ni duplicación de datos**.
+- Staging DB (`data/rumihome.db`, read-only via docker exec): 1 columna, **4** reservas, integridad ok.
+
+### 4) Diff acotado: solo `server/src/db/reservations.ts` (+ `.rr/`) — ✅ PASA
+- `git diff --name-only $(git merge-base origin/rr HEAD)..HEAD` → **`server/src/db/reservations.ts`** (1 archivo, +9/−0).
+- Working tree: solo `.rr/plan.md`. Nada en `app/`, `agent/`, `landing/`, `scripts/`, `database`, compose, nginx ni infra.
+- El diff añade `migrateGuestPhone()` (patrón `migrateDoorCode`, guard `PRAGMA table_info`) y su invocación tras `migrateLegacySchema()`/`migrateDoorCode()`. No altera comportamiento existente.
+- La columna `guest_phone` ya venía en `CREATE TABLE` (la feature ya existía en base); el commit cierra el gap de migración para bases pre-existentes.
+
+### 5) Backup `.rr/db-pre-migracion.db` — ✅ PASA
+- Existe: `.rr/db-pre-migracion.db` (110592 bytes), creado 2026-09-19 15:45 (antes del commit/migración de staging).
+- Contenido chequeado: 1 columna `guest_phone`, `COUNT` = 4, `integrity_check` = ok.
+
+### 6) Veredicto en `.rr/qa-veredicto.md` — ✅ PASA (esta sección)
+
+## Observaciones (no bloqueantes)
+- `/root/backups/scenario-5-pre.db` (backup externo declarado por Daniel) NO se leyó; solo se confirma su táctica de existencia de prescripción: no intervenido en esta auditoría (regla sandbox).
+- Sin `.rr/HALT`; sin detección de desviaciones de rol en esta iteración.
+
+## Veredicto
+**GO** — el commit `fa4f961` cumple los 6 criterios solicitados. La migración es idempotente, no duplica columna ni destruye datos (conteo 4 → 4), el diff toca solo `server/src/db/reservations.ts` (+`.rr/`), el build pasa y el backup `.rr/db-pre-migracion.db` existe y es íntegro. Listo para deploy a staging y posterior promoción a PROD solo con "APROBAR" explícito de Daniel.
