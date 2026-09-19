@@ -1,201 +1,82 @@
-# Plan: REVERT QUIRÚRGICO — validación RUT SOLO (escenario 9)
+# Plan: Escenario 3 — Sección de testimonios de huéspedes en la landing
 
-## Orden de Daniel (escenario 9)
-El staging (`/opt/rumihome-rr`, branch `rr-feature-9-revert-selectivo`) tiene **2 features
-activas conviviendo**:
-1. **Validación RUT chileno** (escenario 4) — `lib/rut.ts` (app y server), validación en
-   `GuestLogin.tsx`, `guestRouter`/`adminRouter`.
-2. **Gráfico de ocupación mensual** (escenario 8) — serie backend + SVG en `DashboardTab`.
+## Orden de Daniel (escenario 3)
+Agregar una sección de **testimonios de huéspedes** a la landing del espejo
+(`landing/index.html`): **3 testimonios ficticios** con nombre, comuna y texto
+breve, ubicados **antes del footer**. Estilo coherente con la landing actual.
+**Solo landing** — nada de `app/` ni `server/`.
 
-DANIEL QUIERE: **revertir SOLO la validación RUT**. El gráfico de ocupación **DEBE
-quedarse intacto**. Este documento es el plan quirúrgico (pm NO codea). NO se toca código
-sin aprobación explícita de la tarea 1 de TAREAS.
-
-## Estado verificado (git, rama `rr-feature-9-revert-selectivo` @ 6dad2ef)
-
-| Feature | Commits | Archivos tocados |
+## Estado base (verificado por PM)
+| Referencia | Commit | Nota |
 |---|---|---|
-| RUT (esc4) | `0710bd8` (frontend) + `dbc44d0` (backend) | `app/src/lib/rut.ts` (NUEVO), `app/src/pages/GuestLogin.tsx`, `server/src/lib/rut.ts` (NUEVO), `server/src/db/reservations.ts`, `server/src/routes/admin.ts` |
-| Gráfico (esc8) | `51cbd50` (frontend) + `5a133ed` (backend) | `app/src/api/client.ts`, `app/src/pages/DashboardTab.tsx`, `app/src/types.ts`, `server/src/db/reservations.ts`, `server/src/routes/admin.ts` |
+| `origin/rr` | `f2eee78` | base del espejo sin la sección |
+| `rr-feature-3-testimonios` | `f2eee78` | branch del escenario 3, idéntico a `origin/rr` |
 
-**Advertencia clave del escenario**: `server/src/db/reservations.ts` y
-`server/src/routes/admin.ts` fueron tocados por **AMBAS** features. El revert no puede ser
-un `git revert` ciego de los commits de RUT (anularía hunks del gráfico). Es un revert
-**selectivo por hunk**.
+- La landing es **estática** (HTML + CSS inline); su "fuente de verdad" de diseño
+  son los tokens CSS del propio `landing/index.html` (`--accent: #FF385C`,
+  `--tile: #F7F7F7`, `--border: #DDDDDD`, secciones `max-width:1440px`,
+  grillas `repeat(3,1fr)`, títulos `h2` de 22px). No hay `landing/styles.css`.
+- Escenario 2 (rollback `expense-ranking`) queda **CERRADO**: el código en `rr` ya
+  era idéntico a `scenario-2-base`; se mantuvo el historial en
+  `rr-feature-2-ranking-gastos`.
 
-## Estrategia quirúrgica
+## LÍNEA FRONTERA: qué se toca y qué NO
 
-Restaurar cada archivo al blob de referencia que contiene SOLO la feature gráfico
-(estado tras `5a133ed`/`51cbd50`), extrayendo únicamente los hunks RUT:
-
-| Archivo | Estado objetivo (referencia git) |
+### SÍ se toca
+| Archivo | Cambio |
 |---|---|
-| `app/src/pages/GuestLogin.tsx` | blob `904d2b4` (= estado previo a `0710bd8`, sin RUT; el gráfico nunca lo tocó) |
-| `server/src/routes/admin.ts` | estado `5a133ed` del archivo (= solo gráfico: hay `getOccupancySeries` + `/occupancy/series`, SIN validarRut ni rutInvalido) — a partir de `f02360f` AÑADIR solo hunk ocupación |
-| `server/src/db/reservations.ts` | estado `5a133ed` del archivo (= solo gráfico: hay `getOccupancySeries`, `guestLookup` ORIGINAL sin normalizarRut) |
+| `landing/index.html` | nueva sección `#testimonios` (CSS + markup) antes del footer |
+| `.rr/plan.md` | este plan (doc) |
+| `.rr/ux-testimonios.md` | spec UX pre-código (doc) |
+| `.rr/qa-veredicto.md` | adenda con el veredicto QA (doc) |
 
-Equivalente verifiable: el diff final de la rama debe ser **cero** contra
-`rr`-con-gráfico-solo en los 3 archivos de código y sin residuos RUT en ningún lado.
+### NO se toca (prohibido)
+- `app/`, `server/`, `agent/`, `scripts/`, `docker-compose.rr.yml`, nginx,
+  `litestream.yml`, credenciales.
+- Navegación principal (`nav.global`) u otras secciones existentes de la landing:
+  el cambio es aditivo (solo se agrega la sección).
+- Rutas `/rr/*` existentes: se conservan intactas.
 
----
+## RUTEO
+Reglas aplicadas: solo UI estática (landing) → ux + frontend; QA siempre.
 
-## INVENTARIO EXACTO — LO QUE SE VA (feature RUT)
-
-### 1. `app/src/lib/rut.ts` — **BORRAR archivo completo** (38 líneas)
-- `RutErrorCode`, `ValidarRutResult`, `normalizarRut`, `calcularDv`, `validarRut`.
-- Sin referencias restantes en la app después del revert (ver verificación 2).
-
-### 2. `server/src/lib/rut.ts` — **BORRAR archivo completo** (38 líneas)
-- Mismo contenido espejo (normalizarRut, validarRut, etc.).
-- Sin referencias restantes en el server después del revert.
-
-### 3. `app/src/pages/GuestLogin.tsx` — REVERTIR a blob `904d2b4`
-Eliminar los hunks del commit `0710bd8`:
-- `import { validarRut, type RutErrorCode } from '../lib/rut'`
-- Constante `RUT_ERROR_MESSAGES`
-- Estado `rutError` + `handleRutBlur`
-- En `handleSubmit`: el early-return `if (!rut.trim()) return`, el bloque
-  `validarRut`/`rutNormalizado`, el focus de `g-rut`; volver a enviar `rut.trim()`
-  (y navegar con `rut: rut.trim()`)
-- En el input `#g-rut`: `autoComplete="off"`, `aria-invalid`, `aria-describedby`,
-  el `onBlur`, la mutación de `rutError` en `onChange`; restaurar
-  `onChange={(e) => setRut(e.target.value)}`
-- Bloque `{rutError && (<p id="rut-error" …>…)}`
-
-### 4. `server/src/db/reservations.ts` — REVERTIR SOLO hunk RUT (archivo compartido)
-- BORRAR: `import { normalizarRut } from '../lib/rut.js'` (línea 5)
-- `guestLookup` (líneas ~359-366): restaurar SQL y parámetro ORIGINALES
-  ```ts
-  WHERE UPPER(pnr) = ? AND guest_rut = ?
-  ```
-  y `.get(pnr.toUpperCase(), rut.trim())`
-  (quitar el `REPLACE(REPLACE(...))` y `normalizarRut(rut)`)
-- **NO TOCAR** `OccupancyMonth` ni `getOccupancySeries` (hunk del gráfico, líneas ~437-490).
-
-### 5. `server/src/routes/admin.ts` — REVERTIR SOLO hunks RUT (archivo compartido)
-- BORRAR: `import { validarRut } from '../lib/rut.js'` (línea 2)
-- BORRAR helper `rutInvalido` (líneas ~22-24)
-- BORRAR los **5 checks** `validarRut`/`rutInvalido`:
-  1. `POST /reservations` (tras el chequeo de obligatorio, líneas ~34-35)
-  2. `PATCH /reservations/:id` (dentro del `if (b.guest_rut !== undefined)`, líneas ~130-132)
-  3. `guestRouter POST /lookup` (líneas ~199-200)
-  4. `guestRouter POST /reservation` (líneas ~215-216)
-  5. `guestRouter PATCH /reservation` (líneas ~230-231)
-- **NO TOCAR**: import de `getOccupancySeries` ni el endpoint `GET /occupancy/series`
-  (hunk del gráfico, rutas ~90-103).
-
----
-
-## INVENTARIO EXACTO — LO QUE QUEDA INTACTO (feature gráfico, NO REVERTIR)
-
-### 6. `app/src/pages/DashboardTab.tsx` — **INTACTO**
-- `import type { OccupancySeries }`
-- Componente `OccupancyChart` (SVG, eje Y 0-100)
-- Estado `occ`, `load()` con `Promise.all([…, api.getOccupancySeries(6, propertyId).catch(() => null)])`
-- Sección "Ocupación mensual (6 meses)" dentro del nuevo `dashboard-cols` junto a
-  "Ingresos vs gastos (6 meses)"
-
-### 7. `app/src/api/client.ts` — **INTACTO**
-- `getOccupancySeries(months, propertyId)` + `import type { OccupancySeries }`
-
-### 8. `app/src/types.ts` — **INTACTO**
-- Interfaces `OccupancyMonth` y `OccupancySeries`
-
-### 9. `server/src/db/reservations.ts` — **INTACTO en hunk gráfico**
-- Interface `OccupancyMonth` + función `getOccupancySeries` (compartido con RUT: solo
-  se revierte el hunk del punto 4)
-
-### 10. `server/src/routes/admin.ts` — **INTACTO en hunk gráfico**
-- Endpoint `GET /occupancy/series` + su import (compartido con RUT: solo se revierten
-  los hunks del punto 5)
-
----
-
-## Resumen visual de archivos
-
-| Archivo | Acción |
-|---|---|
-| `app/src/lib/rut.ts` | ✂️ BORRAR (RUT) |
-| `server/src/lib/rut.ts` | ✂️ BORRAR (RUT) |
-| `app/src/pages/GuestLogin.tsx` | ✂️ REVERTIR completo a blob `904d2b4` (RUT) |
-| `server/src/db/reservations.ts` | 🔧 REVERTIR hunk `guestLookup`+import / ✅ MANTENER `getOccupancySeries` |
-| `server/src/routes/admin.ts` | 🔧 REVERTIR import `validarRut`+`rutInvalido`+5 checks / ✅ MANTENER `/occupancy/series` |
-| `app/src/pages/DashboardTab.tsx` | ✅ INTACTO |
-| `app/src/api/client.ts` | ✅ INTACTO |
-| `app/src/types.ts` | ✅ INTACTO |
-
-## NO se toca (esta orden)
-- `.rr/*` históricos (`ux-rut.md`, `qa-veredicto.md` del esc4, docs del esc8): los docs
-  del proceso NUNCA se revierten. Este plan reemplaza el `plan.md` del esc4 — el resto
-  queda como historial.
-- `app/tsconfig.tsbuildinfo` (artefacto del build, tocado por esc8) — no es código de
-  feature, se deja.
-- `landing/`, `agent/`, `agent-dev/`, `litestream.yml`, `scripts/`, auth Firebase,
-  infra compose/nginx, DBs de staging.
-
-## RUTEO (reglas del entorno RR)
-- **pm**: APLICA — este documento (no codea).
-- **supervisor**: APLICA — audita que el revert NO haya arrancado hunks del gráfico y
-  no haya tocado infra.
-- **ux**: NO emite spec nueva (se restaura UX ya spec'ada del pre-RUT; revisión visual
-  post-deploy queda en QA). Si QA detecta deriva visual en `GuestLogin`, escala.
-- **frontend**: APLICA — puntos 1, 3 y build de `app/` (`npm run build`).
-- **backend**: APLICA — puntos 2, 4, 5 y build/typecheck de `server/` + smoke contra
-  SQLite de staging.
-- **qa**: APLICA (siempre) — verificación anti-residuos, diff vs estado objetivo,
-  pruebas funcionales, veredicto GO/NO-GO.
+- pm: APLICA — redacta este plan y audita el cumplimiento del alcance.
+- supervisor: APLICA — audita que se toque SOLO `landing/` y docs `.rr/`.
+- ux: APLICA — spec de la sección (`.rr/ux-testimonios.md`) ANTES de codificar,
+  desde los tokens de la landing; revisión visual en staging DESPUÉS del deploy.
+- frontend: APLICA — implementa `landing/index.html`.
+- qa: APLICA — diff acotado, invariantes de la landing (lightbox, anclas, rutas
+  `/rr/*`, mailto) y veredicto GO/NO-GO.
+- backend: NO APLICA — sin cambios en `server/`.
 
 ## TAREAS
-1. **Confirmación previa** (regla backlog): pedir OK de Daniel sobre esta tarea
-   específica ("revertir SOLO validación RUT") ANTES de editar cualquier archivo de código.
-   - Estado: EN ESPERA DE OK
+1. [ux] Spec de la sección testimonios (tokens, estructura, responsivo).
+   - Criterios: 3 tarjetas; cada una con nombre, comuna y texto breve; estrellas;
+   - grilla responsive 3 → 1 columna; estados: `#testimonios` única sección nueva.
+   - Estado: hecho (`.rr/ux-testimonios.md`)
+2. [frontend] Implementar `#testimonios` en `landing/index.html`
+   - Sección nueva ANTES del footer (después de `#reservar`), estética coherente.
+   - Sin cambios en nav, hero, amenities, galería, lightbox script, book-card,
+     footer, mailto ni rutas `/rr/*`.
+   - Estado: hecho (diff 100% aditivo)
+3. [qa] Validación
+   - `git diff origin/rr --name-only` → solo `landing/index.html` + docs `.rr/`.
+   - Repasar invariantes de la landing (grep: `/rr/img/`, `/rr/app/reserva`,
+     `mailto`, lightbox, anclas).
+   - Veredicto GO/NO-GO en `.rr/qa-veredicto.md`.
+   - Estado: hecho (GO, adenda escenario 3)
+4. [supervisor] Auditoría de alcance
+   - Criterios: fuerte — nada fuera de `landing/` y `.rr/`.
+   - Estado: pendiente (auditar diffs; crearía `.rr/HALT` solo si hay desvío)
+5. [pm] Cierre: registrar resultado y desviaciones (si hubiera) en historial.
+   - Estado: hecho — sin desviaciones nuevas; historial acumulado conservado.
 
-2. [backend] Revert hunk RUT en `server/src/db/reservations.ts` (punto 4)
-   - Estado: pendiente
-
-3. [backend] Revert hunks RUT en `server/src/routes/admin.ts` (punto 5) + borrar
-   `server/src/lib/rut.ts` (punto 2)
-   - Estado: pendiente
-
-4. [backend] `npm run typecheck` + `npm run build`; smoke: `guestLookup` matchea
-   reserva histórica con RUT con/sin puntos, y `GET /api/occupancy/series` responde
-   200 con el payload esperado.
-   - Estado: pendiente
-
-5. [frontend] Revert `app/src/pages/GuestLogin.tsx` (punto 3) + borrar
-   `app/src/lib/rut.ts` (punto 1)
-   - Estado: pendiente
-
-6. [frontend] `npm run build` en `app/`.
-   - Estado: pendiente
-
-7. [qa] Verificación anti-colateral (CRITERIOS DE ÉXITO, ver abajo) + veredicto en
-   `.rr/qa-veredicto.md`.
-   - Estado: pendiente
-
-8. [pm] Registrar cierre y dejar listo para deploy staging (NO promote sin "APROBAR").
-   - Estado: pendiente
-
-## CRITERIOS DE ÉXITO (automáticos, lista de chequeo QA)
-1. **Residuos cero de RUT**: `grep -rn "normalizarRut\|validarRut\|RutErrorCode\|lib/rut" app/src server/src` → **0 matches**.
-2. **Diff del gráfico intacto**: `git diff` de `DashboardTab.tsx`, `api/client.ts`,
-   `types.ts` vs `5a133ed`/`51cbd50` → **vacío**.
-3. **Diff de archivos compartidos**: `git diff 5a133ed` sobre `admin.ts` y
-   `reservations.ts` → **vacío** (identidad exacta con el "solo gráfico").
-4. **`GuestLogin.tsx`** idéntico al blob `904d2b4` (`git diff` contra `0710bd8^` → vacío).
-5. Build app + server limpios; smoke staging: login huésped con RUT sin puntos entra
-   (lookup original), gráfico de ocupación se renderiza en `/admin`.
-
-## HISTORIAL / DECISIONES
-- **Escenario 9** (revert selectivo): se elige revert por **hunk** (no commit completo)
-  porque `reservations.ts` y `admin.ts` están compartidos con la feature gráfico.
-- La comparación RUT vuelve a igualdad simple `guest_rut = ?` + `rut.trim()` (estado
-  funcional previo al esc4). No se migra/normaliza datos.
-- `validarRut` deja de existir en app y server; ningún endpoint lo vuelve a exigir.
-- El gráfico de ocupación (esc8) permanece íntegro e intocado: serie backend
-  `getOccupancySeries`, endpoint `GET /api/occupancy/series`, `OccupancyChart` SVG,
-  sección en Dashboard y tipos.
-- Commits sugeridos (estilo historial `rr(<scope>):`):
-  - `rr(backend): revert validacion RUT (queda grafico ocupacion intacto)`
-  - `rr(frontend): revert validacion RUT en portal huesped`
-  - `rr(train): docs escenario 9 (plan reversion, veredicto QA)`
+## DESVIACIONES (historial acumulado)
+- Iteración 1: PM codeó directamente (violación de rol) → corregido: prohibición explícita en su prompt.
+- Iteración 1: plan.md no existía al iniciar frontend → corregido: regla "plan antes de asignar".
+- Iteración 1: permisos endurecidos (external_directory deny, /root y /etc/nginx bloqueados).
+- Iteración 2: compromiso de NO codear (plan escrito ANTES de asignar a ux/frontend/qa).
+- Iteración 3: Daniel revierte la estética 90s completa (landing + SPA). La infra `/rr/` es orden explícita de NO revertir.
+- Rollback escenario 2: el endpoint expense-ranking quedó fuera de `rr` por NO haberse mergeado;
+  el código en `rr` ya era idéntico a `scenario-2-base`. Se mantiene como historial en
+  `rr-feature-2-ranking-gastos`.
