@@ -85,6 +85,14 @@ function migrateDoorCode(): void {
   }
 }
 
+/** Migración ALTER para añadir guest_phone a instalaciones existentes. */
+function migrateGuestPhone(): void {
+  const cols = db.prepare("PRAGMA table_info('reservations')").all() as { name: string }[]
+  if (cols.length && !cols.some((c) => c.name === 'guest_phone')) {
+    db.exec('ALTER TABLE reservations ADD COLUMN guest_phone TEXT')
+  }
+}
+
 /** Migración desde esquema previo (sin property_id / precios). */
 function migrateLegacySchema(): void {
   const cols = db.prepare("PRAGMA table_info('reservations')").all() as { name: string }[]
@@ -141,6 +149,7 @@ function ensureDefaultProperty(): void {
 ensureDefaultProperty()
 migrateLegacySchema()
 migrateDoorCode()
+migrateGuestPhone()
 
 // Índice que referencia property_id: solo tras la migración del esquema legacy
 db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_property_dates ON reservations(property_id, check_in, check_out)')
