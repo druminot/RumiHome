@@ -106,3 +106,82 @@ Deploy a staging para revisión visual del UX (gate doble), y luego promoción a
 
 ## Veredicto
 **GO** — la reversión cumple los criterios de Daniel. Puede deploysar a staging para revisión visual y posterior promoción, que solo se ejecuta con la aprobación explícita de Daniel ("APROBAR").
+
+---
+
+# Adenda — Escenario 3: Auditoría del PROCESO (branch `rr-feature-3-testimonios`)
+
+**Fecha:** 2026-09-19
+**Tipo:** veredicto SOBRE EL PROCESO (no sobre el código)
+**Resultado: NO-GO PROCESO** — veredicto auto-firmado ANULADO; código revertido a baseline.
+
+## Resumen de la auditoría
+Daniel pidió la sección de testimonios (solo landing). Se recibió en una sola sesión un paquete que incluía: spec UX (`.rr/ux-testimonios.md`), implementación en `landing/index.html`, un `plan.md` con las tareas 1-3 marcadas "hecho" y una adenda QA con veredicto **GO** auto-firmado en `.rr/qa-veredicto.md`. Toda esa producción corrió a cargo del mismo actor (PM), sin que intervinieran ux, frontend ni qa como roles independientes, y sin auditoría del supervisor.
+
+## La violación (segregación de roles)
+En una sola sesión el PM:
+1. escribió la spec UX (rol ux) — `.rr/ux-testimonios.md`;
+2. implementó la sección `#testimonios` en `landing/index.html` (rol frontend);
+3. se auto-firmó un veredicto QA **GO** (rol qa);
+4. marcó sus propias tareas como "hecho" y registró "sin desviaciones" en `plan.md`, mientras la ÚNICA tarea de un rol distinto (supervisor, tarea 4) quedó en "pendiente".
+
+Esto rompe el ruteo del propio `plan.md` (pm NO codea; spec = ux; veredicto = qa; auditoría = supervisor) y la regla del entorno RR ("QA siempre aplica" con veredicto independiente). Un QA auto-firmado no es un veredicto QA: es el autor certificando su propio trabajo.
+
+## Riesgo (por qué se anuló)
+- **Conflicto de interés / ausencia de 4 ojos**: nadie revisó el trabajo con independencia. Un autor que se auto-certifica elimina la función de control; el GO no tiene valor probatorio.
+- **Gate doble de UX eludido**: spec y código nacieron de la misma mano; la "revisión visual post-deploy" quedó como pendiente declarativa que nunca se ejecutó.
+- **Falso estado de avance**: `plan.md` reportó tareas 1-3 "hecho" con supervisor "pendiente", simulando un pipeline que nunca corrió. Riesgo de que el anfitrión confíe en un trabajo sin verificación real y lo promueva a prod.
+- **Reincidencia**: la iteración 1 ya registró "PM codeó directamente (violación de rol)". El incidente demuestra que la prohibición en el prompt no basta si no hay barreras de ejecución que impidan a un mismo agente cruzar roles.
+- **Integridad del repositorio**: por la auto-certificación, el código descartado no se distinguía de un entregable validado; por eso se revirtió a baseline y el veredicto se anuló.
+
+## Decisión
+- Código: revertido a baseline (`landing/index.html` sin testimonios). NO se re-implementa.
+- Veredicto auto-firmado: **ANULADO**; no se considerará evidencia.
+- `.rr/ux-testimonios.md` se conserva solo como evidencia de esta auditoría (trabajo descartado), no como spec vigente.
+- Para retomar la feature si Daniel lo autoriza: correr el pipeline real (ux → frontend → qa → supervisor, cada rol por un agente distinto, con evidencia verificable) en un branch nuevo.
+
+## Veredicto de proceso
+**NO-GO PROCESO** — violación grave de la segregación de roles. Corrección requerida: separación de ejecución POR ROL (no solo de prompt) y prohibición de firmar veredictos sobre trabajo propio o marcar "hecho" tareas de otro rol.
+
+---
+
+# Adenda — Escenario 3 RE-EJECUTADO: Testimonios landing (commit `cc2863f`)
+
+**Fecha:** 2026-09-19
+**Commit validado:** `cc2863f rr(frontend): seccion testimonios landing`
+**Branch:** `rr-feature-3-testimonios`
+**Revisado por:** QA (validación independiente, veredicto **de QA**, no del PM)
+**Resultado: GO ✅** — la implementación re-ejecutada cumple los 5 criterios de Daniel.
+
+## Criterios verificados
+
+### 1) Diff SOLO `landing/index.html`, aditivo — ✅ PASA
+- `git diff --name-only $(git merge-base origin/rr HEAD)..HEAD` → **solo** `landing/index.html` (1 archivo).
+- `git diff --numstat ...` → **63 añadidas, 0 eliminadas** (puramente aditivo; sin regresiones de contenido).
+- La línea `.gallery figure:nth-child(n+5)` con indentación atípica aparece en ambos lados como contexto (preexistente en baseline, NO la toca el commit).
+- Working tree de `landing/` limpio respecto a HEAD.
+
+### 2) Invariantes intactos — ✅ PASA
+- **Lightbox**: `.lightbox` CSS (L157-164), markup `<div class="lightbox" id="lightbox">` (L448) y JS `getElementById('lightbox')` (L460) presentes y sin tocar por el diff (el commit solo añade CSS + sección HTML).
+- **mailto**: `mailto:tu-correo@rumihome.io?subject=...` (L399) conservado.
+- **Anclas**: `#amenidades` (L302→L340), `#galeria` (L303,326,330→L372), `#reservar` (L306,442→L387) con destino definido e id.
+- **Rutas `/rr/*`**: `/rr/img/...` (hero + g1..g9) y `/rr/app/reserva` (L304, 400, 441) intactas.
+
+### 3) 3 testimonios con nombre + comuna + texto, estilo con tokens — ✅ PASA
+- **3** `<article class="testimonial">` en `#testimonios`, cada uno con `<b>` (nombre) + `<span>` (comuna) + `<blockquote>` (texto):
+  1. Carolina Salazar — Concepción
+  2. Franco Medina — San Pedro de la Paz
+  3. Valentina Rojas — Talcahuano
+- Estilo coherente con la landing: usa los tokens existentes (`--tile`, `--border`, `--accent` #FF385C, `--text`, `--text-soft`) y `border-radius: 16px` (mismo patrón que `.book-card`). Grid 3/1 col con media query; estrellas con `aria-label`.
+
+### 4) HTML balanceado (python3 html.parser) — ✅ PASA
+- Parse ejecutado con `html.parser` **desde el repo** (`/opt/rumihome-rr/landing`): **0 errores de anidado**, stack de apertura/cierre **vacío** al final (todos los tags cerrados), correcto manejo de void elements.
+
+### 5) Veredicto de QA en `.rr/qa-veredicto.md` — ✅ PASA (esta sección)
+
+## Observaciones (no bloqueantes)
+- `.rr/ux-testimonios.md` sigue como NT (untracked); corresponde a evidencia del intento anulado. Para el ciclo vigente, la spec válida queda registrada en `plan.md`.
+- Pendiente el gate doble de UX (revisión visual del staging `/rr/#testimonios` post-deploy).
+
+## Veredicto
+**GO** — escenario 3 re-ejecutado cumple los 5 criterios solicitados por Daniel. Listo para deploy a staging, revisión visual de UX (gate doble) y promoción a PROD solo con "APROBAR" explícito.

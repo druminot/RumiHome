@@ -223,6 +223,35 @@
     .book-meta { display: flex; gap: 24px; margin-top: 18px; font-size: 13px; color: var(--text-soft); flex-wrap: wrap; }
     .book-meta b { color: var(--text); display: block; font-size: 14px; }
 
+    /* ===== Testimonios ===== */
+    .testimonials { max-width: 1440px; margin: 0 auto; padding: 40px max(20px, 2.5vw) 64px; }
+    .testimonials h2 { font-size: 22px; font-weight: 700; margin-bottom: 20px; letter-spacing: -0.01em; }
+    .testimonial-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    }
+    .testimonial {
+      background: var(--tile);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex; flex-direction: column; gap: 12px;
+      text-align: left;
+    }
+    .stars { color: var(--accent); font-size: 15px; letter-spacing: 2px; }
+    .quote { font-size: 15px; line-height: 1.5; color: var(--text); }
+    .who { display: flex; align-items: center; gap: 12px; margin-top: auto; }
+    .avatar {
+      width: 40px; height: 40px; flex-shrink: 0;
+      border-radius: 50%;
+      background: var(--tile);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 600;
+      color: var(--text);
+    }
+    .who b { display: block; font-size: 15px; font-weight: 600; }
+    .who b + span { display: block; font-size: 13px; color: var(--text-soft); }
+
     /* ===== Footer Airbnb ===== */
     footer {
       background: var(--tile);
@@ -252,12 +281,14 @@
       .amenity-grid { grid-template-columns: 1fr 1fr; }
       .gallery { grid-template-columns: 1fr 1fr; }
  .gallery figure:nth-child(n+5) { display: none; }
+      .testimonial-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
       .amenity-grid { grid-template-columns: 1fr; }
       .gallery { grid-template-columns: 1fr; }
       .gallery figure:nth-child(n+5) { display: block; }
       .book-card { padding: 28px 22px; }
+      .testimonial { padding: 20px; }
       .hero-head h1 { font-size: 24px; }
     }
   </style>
@@ -368,6 +399,38 @@
       <a class="cta-pill" href="mailto:tu-correo@rumihome.io?subject=Consulta%20arriendo%20Rumihome" style="text-align:center;">Escríbeme por correo</a>
       <a class="cta-pill small" href="/rr/app/reserva" style="background:var(--text);text-align:center;">Ya tengo reserva · Ver mi viaje</a>
     </div>
+  </div>
+</section>
+
+<div class="divider"><hr></div>
+
+<section id="testimonios" class="testimonials" aria-labelledby="t-test">
+  <h2 id="t-test">Lo que dicen nuestros huéspedes</h2>
+  <div class="testimonial-grid">
+    <article class="testimonial">
+      <div class="stars" role="img" aria-label="Calificación: 5 de 5">★★★★★</div>
+      <blockquote class="quote">“La llegada con clave digital fue súper simple: llegamos a la hora que necesitábamos. Wi-Fi rápido para trabajar y todo impecable.”</blockquote>
+      <footer class="who">
+        <span class="avatar" aria-hidden="true">C</span>
+        <div><b>Carolina Salazar</b><span>Concepción</span></div>
+      </footer>
+    </article>
+    <article class="testimonial">
+      <div class="stars" role="img" aria-label="Calificación: 5 de 5">★★★★★</div>
+      <blockquote class="quote">“Departamento impecable y muy bien ubicado, cerca de supermercados y restaurantes. El check-in autónomo es un 7.”</blockquote>
+      <footer class="who">
+        <span class="avatar" aria-hidden="true">F</span>
+        <div><b>Franco Medina</b><span>San Pedro de la Paz</span></div>
+      </footer>
+    </article>
+    <article class="testimonial">
+      <div class="stars" role="img" aria-label="Calificación: 5 de 5">★★★★★</div>
+      <blockquote class="quote">“Todo limpio, cómodo y tal cual las fotos. Se nota el cuidado en los detalles; volveríamos sin dudarlo.”</blockquote>
+      <footer class="who">
+        <span class="avatar" aria-hidden="true">V</span>
+        <div><b>Valentina Rojas</b><span>Talcahuano</span></div>
+      </footer>
+    </article>
   </div>
 </section>
 </main>
