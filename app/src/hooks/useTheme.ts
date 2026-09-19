@@ -38,6 +38,11 @@ export function useTheme() {
 
   useEffect(() => {
     applyTheme(theme, isAdminRoute)
+    return () => {
+      // Al desmontar se limpia el tema: el documento queda sin data-theme,
+      // el portal huésped jamás hereda oscuro por un montaje admin previo.
+      delete document.documentElement.dataset.theme
+    }
   }, [theme, isAdminRoute])
 
   const toggleTheme = useCallback(() => {

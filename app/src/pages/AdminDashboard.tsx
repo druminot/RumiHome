@@ -33,7 +33,7 @@ export default function AdminDashboardPage() {
   }, [navigate])
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell admin-theme">
       <header className="admin-topbar">
         <a className="logo" href="/">rumi<span>home</span> · CRM</a>
         <nav className="main-tabs" role="tablist">

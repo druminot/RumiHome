@@ -33,7 +33,7 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="auth-wrapper">
+    <div className="auth-wrapper admin-theme">
       <div className="auth-card">
         <ThemeToggle className="theme-toggle--corner" />
         <Link className="logo" to="/">rumi<span>home</span></Link>
