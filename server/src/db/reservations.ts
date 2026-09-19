@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { randomBytes } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { normalizarRut } from '../lib/rut.js'
 
 export interface PropertyRow {
   id: number
@@ -360,9 +361,9 @@ export function guestLookup(pnr: string, rut: string): ReservationRow | undefine
   return db
     .prepare(
       `SELECT * FROM reservations
-       WHERE UPPER(pnr) = ? AND guest_rut = ?`,
+       WHERE UPPER(pnr) = ? AND REPLACE(REPLACE(REPLACE(UPPER(guest_rut), '.', ''), '-', ''), ' ', '') = ?`,
     )
-    .get(pnr.toUpperCase(), rut.trim()) as unknown as ReservationRow | undefined
+    .get(pnr.toUpperCase(), normalizarRut(rut)) as unknown as ReservationRow | undefined
 }
 
 export interface Stats {

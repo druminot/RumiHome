@@ -188,49 +188,53 @@ Esto rompe el ruteo del propio `plan.md` (pm NO codea; spec = ux; veredicto = qa
 
 ---
 
-# Adenda — Escenario 5: Migración idempotente `guest_phone` (commit `fa4f961`)
+# Adenda — Escenario 4: Validación RUT (commits `0710bd8` + `dbc44d0`)
 
 **Fecha:** 2026-09-19
-**Commit validado:** `fa4f961 rr(backend): migracion idempotente guest_phone`
-**Branch:** `rr-feature-5-telefono`
-**Revisado por:** QA (validación independiente)
-**Resultado: GO ✅** — los 6 criterios de Daniel se cumplen.
+**Commits validados:** `0710bd8 rr(frontend): validacion RUT en portal huesped` · `dbc44d0 rr(backend): validacion RUT server-side`
+**Branch:** `rr-feature-4-rut-validator`
+**Revisado por:** QA (validación independiente; veredicto **de QA**, no del PM)
+**Resultado: GO ✅** — cumple los 6 criterios de Daniel. Con una observación de compatibilidad a decidir (ver abajo).
 
 ## Criterios verificados
 
-### 1) Build de `server/` — ✅ PASA
-- `npm run build` (`tsc`) en `server/` con Node v22 (mismo runtime del Dockerfile) → **EXIT 0**, sin errores.
-- El `dist/` local generado es **idéntico** al `dist/` dentro del container `rumihome-api-rr` (md5 `f22e4daf…` para `dist/db/reservations.js`), lo que confirma que la imagen desplegada corresponde al commit `fa4f961`.
+### 1) Build `app/` y `server/` — ✅ PASA
+- Ejecutados con Node **v22.23.2** (mismo runtime `node:22-alpine` del Dockerfile) vía `docker run --rm -v /opt/rumihome-rr:/workspace node:22-alpine`, sin node en el host.
+- `server/`: `npm run build` (`tsc`) → **0 errores**, `dist/` generado.
+- `app/`: `npm run build` (`tsc -b && vite build`) → **0 errores**, 56 módulos transformados, dist generado. Único warning: import dinámico de `firebase.ts`, **preexistente** (ya reportado en iteraciones previas).
+- `app/tsconfig.tsbuildinfo` (artefacto del build versionado) restaurado a `HEAD`; no queda en el working tree.
 
-### 2) Migración IDEMPOTENTE (2 ejecuciones) — ✅ PASA
-Probado sobre una **copia** de `.rr/qa-copy.db` (sin tocar la DB de staging), ejecutando el módulo real `dist/db/reservations.js` via `docker exec`:
+### 2) Diffs: solo `app/src` y `server/src` — ✅ PASA
+- `git diff --name-only $(git merge-base HEAD rr)..HEAD` (merge-base `fb8cbbf`) → **5 archivos**, todos bajo `app/src/` o `server/src/`:
+  - `app/src/lib/rut.ts` (nuevo), `app/src/pages/GuestLogin.tsx`
+  - `server/src/lib/rut.ts` (nuevo), `server/src/routes/admin.ts`, `server/src/db/reservations.ts`
+- Nada en `landing/`, `agent/`, `scripts/`, `litestream.yml`, compose, nginx ni auth. Working tree actual: solo `.rr/plan.md` (mod) y `.rr/ux-rut.md` (spec, untracked).
+- Norma de sincronía del plan: `app/src/lib/rut.ts` y `server/src/lib/rut.ts` **byte-idénticos** (diff = 0).
 
-- **Caso legacy** (DB PRE-EXISTENTE sin columna: se simuló eliminando `guest_phone` de una copia):
-  - **Ejecución 1**: columna `guest_phone` añadida **1 sola vez**; `COUNT` = 4; `integrity_check` = ok.
-  - **Ejecución 2** (idempotencia): **sin duplicado** de columna (sigue 1), `COUNT` = 4, `integrity_check` = ok → no rompe y no duplica.
-- **Caso no-op** (qa-copy tal cual, columna ya existente, como en staging): 2 ejecuciones → 1 columna, `COUNT` = 4, integridad ok (el guard `cols.some(c => c.name === 'guest_phone')` funciona).
+### 3) Lógica módulo 11 — ✅ PASA (verificada contra el algoritmo, NO contra el plan)
+- Vectores validados ejecutando el **código real compilado** (`server/dist/lib/rut.js`):
+  - `11.111.111-1` → **válido** (`validarRut` ok=true) ✅
+  - `12.345.678-5` → **válido** (ok=true) ✅
+  - `12.345.678-4` → **INVÁLIDO** (ok=false, `RUT_INVALIDO_DV`) ✅ — **el plan lo tenía como "válido DV=4" (vector erróneo del plan).** Cálculo correcto: cuerpo `12345678`, pesos [2..7] de derecha a izquierda → suma 138, resto 6, DV = 11−6 = **5**. Por eso `-4` es incorrecto y `-5` es el DV verdadero. El algoritmo lo rechaza bien.
+  - Branch `K`: `16500003-K` válido (y en minúscula `-k`, y sin separador `16500003K`); `16500003-0` rechazado por DV.
+  - Formatos corruptos (`abcd`, `12345678KK`, vacío, `-x`) → `RUT_INVALIDO_FORMATO`; separadores mixtos (`.`, `-`, espacio) normalizan a `123456785`.
 
-### 3) Conteo de reservas = 4 ANTES y DESPUÉS — ✅ PASA
-- `qa-copy.db` ANTES: **4** (y 1 columna `guest_phone`).
-- Después de la migración (caso legacy y no-op): **4**.
-- Comparación fila a fila (`pnr, guest_name, guest_rut, check_in, check_out, guests, status`): qa-copy == post-migración (no-op) y == legacy-migrada → **idéntico, sin pérdida ni duplicación de datos**.
-- Staging DB (`data/rumihome.db`, read-only via docker exec): 1 columna, **4** reservas, integridad ok.
+### 4) Compatibilidad `guestLookup` con RUTs viejos — ✅ PASA (nivel función + HTTP E2E)
+- **Fixtures**: copias de `.rr/qa-copy.db`; DB manipulations y servidor vía docker (`node dist/index.js` + DB_PATH a la copia).
+- Nivel DB/`guestLookup` (11 casos): stored **sin formato** (`12345678-5`, `77777777`, `16500003k`) matchea con input con formato (`12.345.678-5`, `7.777.777-7`, `16.500.003-K`), sin formato, con espacios, PNR en minúsculas y K minúscula/mayúscula. Todo PASS.
+- Nivel HTTP (`POST /api/guest/lookup`, router público): input `12.345.678-5` y `123456785` contra stored `12345678-5` → **200** con la reserva; K stored `16500003k` vs `16.500.003-K` → **200**. Casos de error: RUT con DV malo → 400, formato corrupto → 400, PNR inexistente con RUT válido → 404, sin RUT → 400.
+- Retrocompatibilidad formal: todo match de la query vieja (igualdad exacta tras trim) sigue matcheando porque la nueva compara normalizado (puntos/guiones/espacios fuera, upper) de ambos lados.
 
-### 4) Diff acotado: solo `server/src/db/reservations.ts` (+ `.rr/`) — ✅ PASA
-- `git diff --name-only $(git merge-base origin/rr HEAD)..HEAD` → **`server/src/db/reservations.ts`** (1 archivo, +9/−0).
-- Working tree: solo `.rr/plan.md`. Nada en `app/`, `agent/`, `landing/`, `scripts/`, `database`, compose, nginx ni infra.
-- El diff añade `migrateGuestPhone()` (patrón `migrateDoorCode`, guard `PRAGMA table_info`) y su invocación tras `migrateLegacySchema()`/`migrateDoorCode()`. No altera comportamiento existente.
-- La columna `guest_phone` ya venía en `CREATE TABLE` (la feature ya existía en base); el commit cierra el gap de migración para bases pre-existentes.
+### 5) Sin deps nuevas — ✅ PASA
+- `git diff merge-base..HEAD` en `package.json` / `package-lock.json` (app y server) → **vacío** (exit 0, sin cambios). Los `lib/rut.ts` son JS/TS puro, sin imports nuevos.
 
-### 5) Backup `.rr/db-pre-migracion.db` — ✅ PASA
-- Existe: `.rr/db-pre-migracion.db` (110592 bytes), creado 2026-09-19 15:45 (antes del commit/migración de staging).
-- Contenido chequeado: 1 columna `guest_phone`, `COUNT` = 4, `integrity_check` = ok.
+### 6) Veredicto de QA en `.rr/qa-veredicto.md` — ✅ PASA (esta sección)
 
-### 6) Veredicto en `.rr/qa-veredicto.md` — ✅ PASA (esta sección)
+## Observaciones (decidir con Daniel)
 
-## Observaciones (no bloqueantes)
-- `/root/backups/scenario-5-pre.db` (backup externo declarado por Daniel) NO se leyó; solo se confirma su táctica de existencia de prescripción: no intervenido en esta auditoría (regla sandbox).
-- Sin `.rr/HALT`; sin detección de desviaciones de rol en esta iteración.
+1. **`[MEDIA]` Lockout de RUTs históricos con DV incorrecto.** La validación HARD (antes del lookup) devuelve `400 RUT_INVALIDO_DV` si el RUT ingresado no pasa módulo 11 — correcto según el pedido. PERO en la DB de staging **las 4 reservas existentes tienen DV inválido** (`12.345.678-9`, `98.765.432-1`, `7.777.777-7`, `5.333.333-3`; todas son datos demo). Esos huéspedes hoy **no pueden reentrar a su reserva** con el RUT que se les guardó (mismo RUT estricto → 400). No es un fallo del algoritmo; es la consecuencia de validar estricto sobre datos históricos no validados. El `guestLookup` normalizado match se verificó, pero el router bloquea antes. Recomendación: decidir si en los endpoints `/api/guest/*` se relaja a "formato válido" sin exigir DV (para no bloquear historial), o aceptar la estrictez y limpiar/remigrar los RUTs demo de staging. Opción documentable como backlog (el plan ya contemplaba relajar para DNI extranjero).
+2. **`[BAJA]` El admin valida pero no normaliza al guardar** (plan tarea 4 decía "guardar `12345678-4`"; el commit guarda `guest_rut.trim()` tal cual en `POST /reservations`). No rompe matching (el lookup normaliza), pero queda como backlog si se quiere unificar el dato en la fuente.
+3. La validación visual del form admin (backlog del plan) no se tocó — dentro del alcance declarado.
 
 ## Veredicto
-**GO** — el commit `fa4f961` cumple los 6 criterios solicitados. La migración es idempotente, no duplica columna ni destruye datos (conteo 4 → 4), el diff toca solo `server/src/db/reservations.ts` (+`.rr/`), el build pasa y el backup `.rr/db-pre-migracion.db` existe y es íntegro. Listo para deploy a staging y posterior promoción a PROD solo con "APROBAR" explícito de Daniel.
+**GO** — escenario 4 cumple los 6 criterios: builds limpios en app y server, diff confinado a `app/src`+`server/src`, algoritmo módulo 11 correcto en los 3 vectores (incl. `12.345.678-4` **inválido**, corrigiendo el vector erróneo del plan), `guestLookup` compatible con RUTs viejos sin formato (función + HTTP E2E) y sin deps nuevas. Se recomienda resolver la observación `[MEDIA]` de lockout histórico antes de la promoción a PROD, o al menos tenerla explícitamente aceptada por Daniel.

@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express'
+import { validarRut } from '../lib/rut.js'
 import {
   createReservation,
   listReservations,
@@ -18,6 +19,11 @@ export const adminRouter = Router()
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/
 
+function rutInvalido(msg: string): string | null {
+  const res = validarRut(msg)
+  return res.ok ? null : `RUT inválido (${res.error})`
+}
+
 /** POST /api/reservations — crear reserva (admin). */
 adminRouter.post('/reservations', async (req: Request, res: Response) => {
   try {
@@ -25,6 +31,8 @@ adminRouter.post('/reservations', async (req: Request, res: Response) => {
     if (!guest_name?.trim() || !guest_rut?.trim()) {
       return res.status(400).json({ error: 'Nombre y RUT del pasajero son obligatorios' })
     }
+    const rutError = rutInvalido(String(guest_rut))
+    if (rutError) return res.status(400).json({ error: rutError })
     if (!check_in || !check_out) {
       return res.status(400).json({ error: 'Check-in y check-out son obligatorios' })
     }
@@ -119,6 +127,10 @@ adminRouter.patch('/reservations/:id', async (req, res) => {
   if (b.door_code !== undefined && b.door_code !== null && !/^\d{8}$/.test(String(b.door_code).trim())) {
     return res.status(400).json({ error: 'La clave de puerta debe ser 8 dígitos' })
   }
+  if (b.guest_rut !== undefined) {
+    const rutError = rutInvalido(String(b.guest_rut))
+    if (rutError) return res.status(400).json({ error: rutError })
+  }
   if (b.guests !== undefined) {
     const g = Number(b.guests)
     const prop = getProperty(Number(b.property_id ?? existing.property_id))
@@ -184,6 +196,8 @@ guestRouter.post('/lookup', (req: Request, res: Response) => {
   if (!pnr?.trim() || !rut?.trim()) {
     return res.status(400).json({ error: 'PNR y RUT son obligatorios' })
   }
+  const rutError = rutInvalido(String(rut))
+  if (rutError) return res.status(400).json({ error: rutError })
   const reservation = guestLookup(String(pnr), String(rut))
   if (!reservation) {
     // 404 genérico: no revelar si el PNR existe
@@ -198,6 +212,8 @@ guestRouter.post('/reservation', (req: Request, res: Response) => {
   if (!pnr?.trim() || !rut?.trim()) {
     return res.status(400).json({ error: 'PNR y RUT son obligatorios' })
   }
+  const rutError = rutInvalido(String(rut))
+  if (rutError) return res.status(400).json({ error: rutError })
   const reservation = guestLookup(String(pnr), String(rut))
   if (!reservation) {
     return res.status(404).json({ error: 'Reserva no encontrada con esos datos' })
@@ -211,6 +227,8 @@ guestRouter.patch('/reservation', (req: Request, res: Response) => {
   if (!pnr?.trim() || !rut?.trim()) {
     return res.status(400).json({ error: 'PNR y RUT son obligatorios' })
   }
+  const rutError = rutInvalido(String(rut))
+  if (rutError) return res.status(400).json({ error: rutError })
   const reservation = guestLookup(String(pnr), String(rut))
   if (!reservation) {
     return res.status(404).json({ error: 'Reserva no encontrada con esos datos' })
