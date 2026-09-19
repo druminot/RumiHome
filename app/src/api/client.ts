@@ -124,6 +124,13 @@ export const api = {
     return request(`/analytics/finance?month=${month}${q}`, { headers: await authHeaders() })
   },
 
+  /* ============ Ocupación ============ */
+
+  async getOccupancySeries(months = 6, propertyId?: number): Promise<OccupancySeries> {
+    const q = new URLSearchParams({ months: String(months), ...(propertyId ? { property_id: String(propertyId) } : {}) }).toString()
+    return request(`/occupancy/series?${q}`, { headers: await authHeaders() })
+  },
+
   /* ============ Domótica ============ */
 
   async listSmartDevices(): Promise<SmartDevice[]> {
@@ -147,4 +154,4 @@ export const api = {
   },
 }
 
-import type { Reservation, NewReservation, Property, Stats, CalendarDay, GuestReservationView, Expense, NewExpense, SupermarketPurchase, SupermarketItem, SupermarketItemInput, SocialStat, NewSocialStat, FinanceAnalytics, SmartDevice, SmartDeviceType, SmartHomeSummary, StayUsageDetail } from '../types'
+import type { Reservation, NewReservation, Property, Stats, CalendarDay, GuestReservationView, Expense, NewExpense, SupermarketPurchase, SupermarketItem, SupermarketItemInput, SocialStat, NewSocialStat, FinanceAnalytics, OccupancySeries, SmartDevice, SmartDeviceType, SmartHomeSummary, StayUsageDetail } from '../types'
