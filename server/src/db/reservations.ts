@@ -85,6 +85,14 @@ function migrateDoorCode(): void {
   }
 }
 
+/** Migración ALTER para añadir guest_phone a instalaciones existentes. */
+function migrateGuestPhone(): void {
+  const cols = db.prepare("PRAGMA table_info('reservations')").all() as { name: string }[]
+  if (cols.length && !cols.some((c) => c.name === 'guest_phone')) {
+    db.exec('ALTER TABLE reservations ADD COLUMN guest_phone TEXT')
+  }
+}
+
 /** Migración desde esquema previo (sin property_id / precios). */
 function migrateLegacySchema(): void {
   const cols = db.prepare("PRAGMA table_info('reservations')").all() as { name: string }[]
@@ -141,6 +149,7 @@ function ensureDefaultProperty(): void {
 ensureDefaultProperty()
 migrateLegacySchema()
 migrateDoorCode()
+migrateGuestPhone()
 
 // Índice que referencia property_id: solo tras la migración del esquema legacy
 db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_property_dates ON reservations(property_id, check_in, check_out)')
@@ -425,6 +434,55 @@ export function getStats(propertyId?: number): Stats {
     occupancy_percent: occupancy,
     next_checkin: nextCheckin ?? null,
   }
+}
+
+export interface OccupancyMonth {
+  month: string
+  occupied_nights: number
+  capacity_nights: number
+  occupancy_percent: number
+}
+
+/**
+ * Serie mensual de ocupación (últimos N meses, para chart de Dashboard).
+ * Semántica idéntica a `getMonthlySeries` de finance.ts; fórmula de ocupación
+ * idéntica a `getStats()`: noches de reservas pendiente+confirmada que solapan
+ * el mes / capacidad (días del mes × propiedades activas), mismo redondeo entero.
+ */
+export function getOccupancySeries(months = 6, propertyId?: number): OccupancyMonth[] {
+  const series: OccupancyMonth[] = []
+  const now = new Date()
+  // Capacidad global de propiedades activas: mismo quirk de getStats() (no se
+  // filtra por property_id; documentado en plan.md para no divergir).
+  const nProps = (db.prepare('SELECT COUNT(*) AS n FROM properties WHERE active = 1').get() as { n: number }).n
+  const propFilter = propertyId ? 'AND property_id = ?' : ''
+  const args: (string | number)[] = propertyId ? [propertyId] : []
+
+  const reserved = db.prepare(
+    `SELECT COALESCE(SUM(
+       JULIANDAY(MAX(check_out, ?)) - JULIANDAY(MIN(check_in, ?))
+     ), 0) AS n FROM reservations
+     WHERE status IN ('pendiente','confirmada')
+       AND check_in < ? AND check_out >= ? ${propFilter}`,
+  )
+
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
+    const month = d.toISOString().slice(0, 7)
+    const monthStart = `${month}-01`
+    const nextMonthDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString().slice(0, 10)
+    const row = reserved.get(monthStart, nextMonthDate, nextMonthDate, monthStart, ...args) as { n: number }
+    const daysThisMonth = nightsBetween(monthStart, nextMonthDate)
+    const capacity = daysThisMonth * Math.max(nProps, 1)
+    const occupancy = capacity > 0 ? Math.round((row.n / capacity) * 100) : 0
+    series.push({
+      month,
+      occupied_nights: Math.round(row.n),
+      capacity_nights: capacity,
+      occupancy_percent: occupancy,
+    })
+  }
+  return series
 }
 
 /** Calendario mensual por propiedad: días ocupados con PNR. */

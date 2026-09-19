@@ -79,6 +79,20 @@ export interface GuestReservationView {
   arrival_time?: string | null
 }
 
+/* ============ Ocupación ============ */
+
+export interface OccupancyMonth {
+  month: string // 'YYYY-MM'
+  occupied_nights: number
+  capacity_nights: number
+  occupancy_percent: number // entero 0-100, mismo redondeo que getStats()
+}
+
+export interface OccupancySeries {
+  months: number
+  series: OccupancyMonth[]
+}
+
 /* ============ Finanzas ============ */
 
 export type ExpenseCategory = 'servicios' | 'mantencion' | 'comision' | 'insumos' | 'otro'

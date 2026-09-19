@@ -106,3 +106,184 @@ Deploy a staging para revisión visual del UX (gate doble), y luego promoción a
 
 ## Veredicto
 **GO** — la reversión cumple los criterios de Daniel. Puede deploysar a staging para revisión visual y posterior promoción, que solo se ejecuta con la aprobación explícita de Daniel ("APROBAR").
+
+---
+
+# Adenda — Escenario 3: Auditoría del PROCESO (branch `rr-feature-3-testimonios`)
+
+**Fecha:** 2026-09-19
+**Tipo:** veredicto SOBRE EL PROCESO (no sobre el código)
+**Resultado: NO-GO PROCESO** — veredicto auto-firmado ANULADO; código revertido a baseline.
+
+## Resumen de la auditoría
+Daniel pidió la sección de testimonios (solo landing). Se recibió en una sola sesión un paquete que incluía: spec UX (`.rr/ux-testimonios.md`), implementación en `landing/index.html`, un `plan.md` con las tareas 1-3 marcadas "hecho" y una adenda QA con veredicto **GO** auto-firmado en `.rr/qa-veredicto.md`. Toda esa producción corrió a cargo del mismo actor (PM), sin que intervinieran ux, frontend ni qa como roles independientes, y sin auditoría del supervisor.
+
+## La violación (segregación de roles)
+En una sola sesión el PM:
+1. escribió la spec UX (rol ux) — `.rr/ux-testimonios.md`;
+2. implementó la sección `#testimonios` en `landing/index.html` (rol frontend);
+3. se auto-firmó un veredicto QA **GO** (rol qa);
+4. marcó sus propias tareas como "hecho" y registró "sin desviaciones" en `plan.md`, mientras la ÚNICA tarea de un rol distinto (supervisor, tarea 4) quedó en "pendiente".
+
+Esto rompe el ruteo del propio `plan.md` (pm NO codea; spec = ux; veredicto = qa; auditoría = supervisor) y la regla del entorno RR ("QA siempre aplica" con veredicto independiente). Un QA auto-firmado no es un veredicto QA: es el autor certificando su propio trabajo.
+
+## Riesgo (por qué se anuló)
+- **Conflicto de interés / ausencia de 4 ojos**: nadie revisó el trabajo con independencia. Un autor que se auto-certifica elimina la función de control; el GO no tiene valor probatorio.
+- **Gate doble de UX eludido**: spec y código nacieron de la misma mano; la "revisión visual post-deploy" quedó como pendiente declarativa que nunca se ejecutó.
+- **Falso estado de avance**: `plan.md` reportó tareas 1-3 "hecho" con supervisor "pendiente", simulando un pipeline que nunca corrió. Riesgo de que el anfitrión confíe en un trabajo sin verificación real y lo promueva a prod.
+- **Reincidencia**: la iteración 1 ya registró "PM codeó directamente (violación de rol)". El incidente demuestra que la prohibición en el prompt no basta si no hay barreras de ejecución que impidan a un mismo agente cruzar roles.
+- **Integridad del repositorio**: por la auto-certificación, el código descartado no se distinguía de un entregable validado; por eso se revirtió a baseline y el veredicto se anuló.
+
+## Decisión
+- Código: revertido a baseline (`landing/index.html` sin testimonios). NO se re-implementa.
+- Veredicto auto-firmado: **ANULADO**; no se considerará evidencia.
+- `.rr/ux-testimonios.md` se conserva solo como evidencia de esta auditoría (trabajo descartado), no como spec vigente.
+- Para retomar la feature si Daniel lo autoriza: correr el pipeline real (ux → frontend → qa → supervisor, cada rol por un agente distinto, con evidencia verificable) en un branch nuevo.
+
+## Veredicto de proceso
+**NO-GO PROCESO** — violación grave de la segregación de roles. Corrección requerida: separación de ejecución POR ROL (no solo de prompt) y prohibición de firmar veredictos sobre trabajo propio o marcar "hecho" tareas de otro rol.
+
+---
+
+# Adenda — Escenario 3 RE-EJECUTADO: Testimonios landing (commit `cc2863f`)
+
+**Fecha:** 2026-09-19
+**Commit validado:** `cc2863f rr(frontend): seccion testimonios landing`
+**Branch:** `rr-feature-3-testimonios`
+**Revisado por:** QA (validación independiente, veredicto **de QA**, no del PM)
+**Resultado: GO ✅** — la implementación re-ejecutada cumple los 5 criterios de Daniel.
+
+## Criterios verificados
+
+### 1) Diff SOLO `landing/index.html`, aditivo — ✅ PASA
+- `git diff --name-only $(git merge-base origin/rr HEAD)..HEAD` → **solo** `landing/index.html` (1 archivo).
+- `git diff --numstat ...` → **63 añadidas, 0 eliminadas** (puramente aditivo; sin regresiones de contenido).
+- La línea `.gallery figure:nth-child(n+5)` con indentación atípica aparece en ambos lados como contexto (preexistente en baseline, NO la toca el commit).
+- Working tree de `landing/` limpio respecto a HEAD.
+
+### 2) Invariantes intactos — ✅ PASA
+- **Lightbox**: `.lightbox` CSS (L157-164), markup `<div class="lightbox" id="lightbox">` (L448) y JS `getElementById('lightbox')` (L460) presentes y sin tocar por el diff (el commit solo añade CSS + sección HTML).
+- **mailto**: `mailto:tu-correo@rumihome.io?subject=...` (L399) conservado.
+- **Anclas**: `#amenidades` (L302→L340), `#galeria` (L303,326,330→L372), `#reservar` (L306,442→L387) con destino definido e id.
+- **Rutas `/rr/*`**: `/rr/img/...` (hero + g1..g9) y `/rr/app/reserva` (L304, 400, 441) intactas.
+
+### 3) 3 testimonios con nombre + comuna + texto, estilo con tokens — ✅ PASA
+- **3** `<article class="testimonial">` en `#testimonios`, cada uno con `<b>` (nombre) + `<span>` (comuna) + `<blockquote>` (texto):
+  1. Carolina Salazar — Concepción
+  2. Franco Medina — San Pedro de la Paz
+  3. Valentina Rojas — Talcahuano
+- Estilo coherente con la landing: usa los tokens existentes (`--tile`, `--border`, `--accent` #FF385C, `--text`, `--text-soft`) y `border-radius: 16px` (mismo patrón que `.book-card`). Grid 3/1 col con media query; estrellas con `aria-label`.
+
+### 4) HTML balanceado (python3 html.parser) — ✅ PASA
+- Parse ejecutado con `html.parser` **desde el repo** (`/opt/rumihome-rr/landing`): **0 errores de anidado**, stack de apertura/cierre **vacío** al final (todos los tags cerrados), correcto manejo de void elements.
+
+### 5) Veredicto de QA en `.rr/qa-veredicto.md` — ✅ PASA (esta sección)
+
+## Observaciones (no bloqueantes)
+- `.rr/ux-testimonios.md` sigue como NT (untracked); corresponde a evidencia del intento anulado. Para el ciclo vigente, la spec válida queda registrada en `plan.md`.
+- Pendiente el gate doble de UX (revisión visual del staging `/rr/#testimonios` post-deploy).
+
+## Veredicto
+**GO** — escenario 3 re-ejecutado cumple los 5 criterios solicitados por Daniel. Listo para deploy a staging, revisión visual de UX (gate doble) y promoción a PROD solo con "APROBAR" explícito.
+
+---
+
+# Adenda — Escenario 4: Validación RUT (commits `0710bd8` + `dbc44d0`)
+
+**Fecha:** 2026-09-19
+**Commits validados:** `0710bd8 rr(frontend): validacion RUT en portal huesped` · `dbc44d0 rr(backend): validacion RUT server-side`
+**Branch:** `rr-feature-4-rut-validator`
+**Revisado por:** QA (validación independiente; veredicto **de QA**, no del PM)
+**Resultado: GO ✅** — cumple los 6 criterios de Daniel. Con una observación de compatibilidad a decidir (ver abajo).
+
+## Criterios verificados
+
+### 1) Build `app/` y `server/` — ✅ PASA
+- Ejecutados con Node **v22.23.2** (mismo runtime `node:22-alpine` del Dockerfile) vía `docker run --rm -v /opt/rumihome-rr:/workspace node:22-alpine`, sin node en el host.
+- `server/`: `npm run build` (`tsc`) → **0 errores**, `dist/` generado.
+- `app/`: `npm run build` (`tsc -b && vite build`) → **0 errores**, 56 módulos transformados, dist generado. Único warning: import dinámico de `firebase.ts`, **preexistente** (ya reportado en iteraciones previas).
+- `app/tsconfig.tsbuildinfo` (artefacto del build versionado) restaurado a `HEAD`; no queda en el working tree.
+
+### 2) Diffs: solo `app/src` y `server/src` — ✅ PASA
+- `git diff --name-only $(git merge-base HEAD rr)..HEAD` (merge-base `fb8cbbf`) → **5 archivos**, todos bajo `app/src/` o `server/src/`:
+  - `app/src/lib/rut.ts` (nuevo), `app/src/pages/GuestLogin.tsx`
+  - `server/src/lib/rut.ts` (nuevo), `server/src/routes/admin.ts`, `server/src/db/reservations.ts`
+- Nada en `landing/`, `agent/`, `scripts/`, `litestream.yml`, compose, nginx ni auth. Working tree actual: solo `.rr/plan.md` (mod) y `.rr/ux-rut.md` (spec, untracked).
+- Norma de sincronía del plan: `app/src/lib/rut.ts` y `server/src/lib/rut.ts` **byte-idénticos** (diff = 0).
+
+### 3) Lógica módulo 11 — ✅ PASA (verificada contra el algoritmo, NO contra el plan)
+- Vectores validados ejecutando el **código real compilado** (`server/dist/lib/rut.js`):
+  - `11.111.111-1` → **válido** (`validarRut` ok=true) ✅
+  - `12.345.678-5` → **válido** (ok=true) ✅
+  - `12.345.678-4` → **INVÁLIDO** (ok=false, `RUT_INVALIDO_DV`) ✅ — **el plan lo tenía como "válido DV=4" (vector erróneo del plan).** Cálculo correcto: cuerpo `12345678`, pesos [2..7] de derecha a izquierda → suma 138, resto 6, DV = 11−6 = **5**. Por eso `-4` es incorrecto y `-5` es el DV verdadero. El algoritmo lo rechaza bien.
+  - Branch `K`: `16500003-K` válido (y en minúscula `-k`, y sin separador `16500003K`); `16500003-0` rechazado por DV.
+  - Formatos corruptos (`abcd`, `12345678KK`, vacío, `-x`) → `RUT_INVALIDO_FORMATO`; separadores mixtos (`.`, `-`, espacio) normalizan a `123456785`.
+
+### 4) Compatibilidad `guestLookup` con RUTs viejos — ✅ PASA (nivel función + HTTP E2E)
+- **Fixtures**: copias de `.rr/qa-copy.db`; DB manipulations y servidor vía docker (`node dist/index.js` + DB_PATH a la copia).
+- Nivel DB/`guestLookup` (11 casos): stored **sin formato** (`12345678-5`, `77777777`, `16500003k`) matchea con input con formato (`12.345.678-5`, `7.777.777-7`, `16.500.003-K`), sin formato, con espacios, PNR en minúsculas y K minúscula/mayúscula. Todo PASS.
+- Nivel HTTP (`POST /api/guest/lookup`, router público): input `12.345.678-5` y `123456785` contra stored `12345678-5` → **200** con la reserva; K stored `16500003k` vs `16.500.003-K` → **200**. Casos de error: RUT con DV malo → 400, formato corrupto → 400, PNR inexistente con RUT válido → 404, sin RUT → 400.
+- Retrocompatibilidad formal: todo match de la query vieja (igualdad exacta tras trim) sigue matcheando porque la nueva compara normalizado (puntos/guiones/espacios fuera, upper) de ambos lados.
+
+### 5) Sin deps nuevas — ✅ PASA
+- `git diff merge-base..HEAD` en `package.json` / `package-lock.json` (app y server) → **vacío** (exit 0, sin cambios). Los `lib/rut.ts` son JS/TS puro, sin imports nuevos.
+
+### 6) Veredicto de QA en `.rr/qa-veredicto.md` — ✅ PASA (esta sección)
+
+## Observaciones (decidir con Daniel)
+
+1. **`[MEDIA]` Lockout de RUTs históricos con DV incorrecto.** La validación HARD (antes del lookup) devuelve `400 RUT_INVALIDO_DV` si el RUT ingresado no pasa módulo 11 — correcto según el pedido. PERO en la DB de staging **las 4 reservas existentes tienen DV inválido** (`12.345.678-9`, `98.765.432-1`, `7.777.777-7`, `5.333.333-3`; todas son datos demo). Esos huéspedes hoy **no pueden reentrar a su reserva** con el RUT que se les guardó (mismo RUT estricto → 400). No es un fallo del algoritmo; es la consecuencia de validar estricto sobre datos históricos no validados. El `guestLookup` normalizado match se verificó, pero el router bloquea antes. Recomendación: decidir si en los endpoints `/api/guest/*` se relaja a "formato válido" sin exigir DV (para no bloquear historial), o aceptar la estrictez y limpiar/remigrar los RUTs demo de staging. Opción documentable como backlog (el plan ya contemplaba relajar para DNI extranjero).
+2. **`[BAJA]` El admin valida pero no normaliza al guardar** (plan tarea 4 decía "guardar `12345678-4`"; el commit guarda `guest_rut.trim()` tal cual en `POST /reservations`). No rompe matching (el lookup normaliza), pero queda como backlog si se quiere unificar el dato en la fuente.
+3. La validación visual del form admin (backlog del plan) no se tocó — dentro del alcance declarado.
+
+## Veredicto
+**GO** — escenario 4 cumple los 6 criterios: builds limpios en app y server, diff confinado a `app/src`+`server/src`, algoritmo módulo 11 correcto en los 3 vectores (incl. `12.345.678-4` **inválido**, corrigiendo el vector erróneo del plan), `guestLookup` compatible con RUTs viejos sin formato (función + HTTP E2E) y sin deps nuevas. Se recomienda resolver la observación `[MEDIA]` de lockout histórico antes de la promoción a PROD, o al menos tenerla explícitamente aceptada por Daniel.
+
+---
+
+# Adenda — Escenario 9: Revert quirúrgico RUT (commit `21b03ae`)
+
+**Fecha:** 2026-09-19
+**Commit validado:** `21b03ae rr(frontend): revert quirurgico RUT (grafico se mantiene)`
+**Branch:** `rr-feature-9-revert-selectivo`
+**Revisado por:** QA (validación independiente sobre working tree = HEAD `21b03ae`)
+**Resultado: GO ✅** — cumple los 5 criterios de Daniel.
+
+## Criterios verificados
+
+### 1) CERO rastros RUT en `app/src` y `server/src` — ✅ PASA
+- `grep -rn` sobre **ambos** árboles de source (exit 1 = sin matches) para:
+  `normalizarRut`, `validarRut`, `RUT_INVALIDO`, `lib/rut` (incl. `lib-rut`, `lib/rut`, `rut.js`, `rut.ts`).
+- Directorios `app/src/lib/` y `server/src/lib/` inexistentes. En `admin.ts` no quedan imports de `../lib/rut` ni helpers `rutInvalido`.
+- Extra: compilado pristino — `rm -rf server/dist` + `npm run build`, y `grep` sobre `server/dist` → **0 rastros**; `server/dist/lib/` ya no existe (se eliminó el artefacto stale del build previo).
+
+### 2) Gráfico de OCUPACIÓN intacto — ✅ PASA
+- Serie backend: `getOccupancySeries` en `server/src/db/reservations.ts:452` (+ `OccupancyMonth`).
+- Endpoint: `GET /api/occupancy/series` en `server/src/routes/admin.ts:91` (validación months 1-24 y property_id).
+- Chart frontend: `OccupancyChart` definido en `app/src/pages/DashboardTab.tsx:134` y renderizado en `:296`, cargado vía `api.getOccupancySeries(6, propertyId)` (`app/src/api/client.ts:129`), tipo `OccupancySeries` en `app/src/types.ts`.
+- `git diff 51cbd50 -- app/src/pages/DashboardTab.tsx app/src/api/client.ts app/src/types.ts` → **vacío** (identidad exacta con el commit del gráfico frontend, esc8).
+
+### 3) Builds app + server — ✅ PASA
+- Ejecutados con Node **v22.23.2** (`node:22-slim`, glibc = mismo runtime del Dockerfile) montando el repo; sin node en el host.
+- `server/`: `npm run build` (`tsc`) → **0 errores**.
+- `app/`: `npm run build` (`tsc -b && vite build`) → **0 errores**, 55 módulos, dist generado. Único warning: import dinámico de `firebase.ts`, **preexistente** en todos los escenarios previos.
+- Nota de higiene: el `node_modules` del host no tenía el binario nativo de rollup (issue de entorno); reparado con `npm install` (deps sin cambios). Artefactos de build (`package-lock.json`, `tsconfig.tsbuildinfo`) restaurados a HEAD; working tree queda solo con `.rr/plan.md` (mod, preexistente).
+
+### 4) Diff vs `5a133ed` en `server/` = vacío — ✅ PASA
+- `git diff 5a133ed 21b03ae -- server/` → **vacío** (exit 0) y `git diff 5a133ed -- server/` (working tree) → **vacío**; `server/` sin cambios pendientes.
+- Confirma que el servidor quedó **byte-idéntico** al commit `5a133ed rr(backend): serie ocupacion mensual` (gráfico presente, RUT ausente): `getOccupancySeries`, endpoint `occupancy/series` presentes; `rutInvalido`/`validarRut` ausentes; `guestLookup` vuelto a `guest_rut = ?` + `rut.trim()`.
+
+### 5) Veredicto de QA en `.rr/qa-veredicto.md` — ✅ PASA (esta sección)
+
+## Verificación funcional adicional (smoke contra copia QA con 4 reservas demo)
+- `guestLookup` (semántica 5a133ed restaurada, ejecutado sobre el `dist` compilado): los 4 PNR matchean con RUT exacto, con espacios y con PNR en minúsculas; RUT erróneo (`999999999`) → **NO match** (rechazo correcto).
+- `getOccupancySeries(12)`: 12 meses, `occupancy_percent` en 0-100, con datos — sep 2026 → 10/30 noches = **33%** (capacidad = días del mes × 1 propiedad activa, quirk documentado en plan).
+- Endpoint HTTP de ocupación requiere auth admin; se validó su registro en el router + la serie a nivel función (mismo criterio que escenarios previos).
+
+## Observaciones (no bloqueantes)
+- Los RUTs demo siguen almacenados con puntos/guiones (`12.345.678-9`, etc.) y ahora el lookup exige igualdad exacta post-`trim` → **el holgazán del esc4 que normalizaba el input ya no aplica** (comportamiento original pre-RUT, según pedido). Los 4 casos demo coinciden con lo guardado, así que siguen entrando.
+- La observación `[MEDIA]` del esc4 (lockout de DV malo) queda **cancelada por diseño**: al revertir la validación no hay rechazo por DV.
+- Pendiente deploy a staging y revisión visual (gate doble de UX) del gráfico de ocupación y del portal huésped.
+
+## Veredicto
+**GO** — el revert quirúrgico del commit `21b03ae` cumple los 5 criterios de Daniel: cero residuos RUT en source (y en compilado), gráfico de ocupación íntegro e idéntico al esc8, builds limpios en app+server, `server/` byte-idéntico a `5a133ed`, y veredicto QA firmado. Listo para confirmación de PM y deploy a staging; la promoción a PROD solo con "APROBAR" explícito de Daniel.

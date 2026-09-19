@@ -12,6 +12,7 @@ import {
   getStats,
   getMonthCalendar,
   hasOverlap,
+  getOccupancySeries,
 } from '../db/reservations.js'
 
 export const adminRouter = Router()
@@ -84,6 +85,20 @@ adminRouter.get('/reservations', (_req, res) => {
 adminRouter.get('/stats', (req, res) => {
   const propertyId = req.query.property_id ? Number(req.query.property_id) : undefined
   res.json(getStats(propertyId))
+})
+
+/** GET /api/occupancy/series — serie mensual de ocupación (últimos N meses, admin). */
+adminRouter.get('/occupancy/series', (req, res) => {
+  const months = req.query.months == null || req.query.months === '' ? 6 : Number(req.query.months)
+  if (!Number.isInteger(months) || months < 1 || months > 24) {
+    return res.status(400).json({ error: 'months debe ser un entero entre 1 y 24' })
+  }
+  const rawProp = req.query.property_id
+  const propertyId = rawProp == null || rawProp === '' ? undefined : Number(rawProp)
+  if (propertyId !== undefined && !Number.isInteger(propertyId)) {
+    return res.status(400).json({ error: 'property_id inválido' })
+  }
+  res.json({ months, series: getOccupancySeries(months, propertyId) })
 })
 
 /** GET /api/properties — listar propiedades (admin + se usa en el form). */
