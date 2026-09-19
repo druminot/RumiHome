@@ -5,19 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Rumihome</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏡</text></svg>">
-  <script>
-    (function () {
-      var admin = '%VITE_ADMIN_PATH%' || '/admin'
-      if (admin.charCodeAt(0) === 37) admin = '/admin'
-      if (location.pathname.indexOf(admin) === 0) {
-        try {
-          if (localStorage.getItem('rumihome.theme') === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'dark')
-          }
-        } catch (e) {}
-      }
-    })()
-  </script>
 </head>
 <body>
   <div id="root"></div>
