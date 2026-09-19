@@ -3,7 +3,7 @@ import {
   createExpense, listExpenses, deleteExpense,
   createPurchase, listPurchases, getPurchaseItems, deletePurchase, listProducts,
   createSocialStat, listSocialStats, deleteSocialStat,
-  getFinanceSummary, getTopProducts, getSocialPlatformStats, getMonthlySeries,
+  getFinanceSummary, getExpenseRanking, getTopProducts, getSocialPlatformStats, getMonthlySeries,
   type ExpenseCategory, type SocialPlatform,
 } from '../db/finance.js'
 
@@ -180,4 +180,15 @@ financeRouter.get('/analytics/finance', (req, res) => {
     social_by_platform: getSocialPlatformStats(monthStart, monthEnd),
     monthly_series: getMonthlySeries(6, propertyId),
   })
+})
+
+/** GET /api/analytics/expense-ranking?month=YYYY-MM&property_id */
+financeRouter.get('/analytics/expense-ranking', (req, res) => {
+  const now = new Date()
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const defaultMonth = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`
+  const month = String(req.query.month ?? defaultMonth)
+  if (!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'Mes inválido' })
+  const propertyId = req.query.property_id ? Number(req.query.property_id) : 1
+  res.json({ ...getExpenseRanking(month, propertyId), property_id: propertyId })
 })
