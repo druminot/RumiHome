@@ -106,3 +106,107 @@ Deploy a staging para revisión visual del UX (gate doble), y luego promoción a
 
 ## Veredicto
 **GO** — la reversión cumple los criterios de Daniel. Puede deploysar a staging para revisión visual y posterior promoción, que solo se ejecuta con la aprobación explícita de Daniel ("APROBAR").
+---
+
+# Adenda — Escenario 1: Modo oscuro admin (commit `6fada5c`)
+
+**Fecha:** 2026-09-19
+**Commit validado:** `6fada5c rr(frontend): modo oscuro admin`
+**Branch:** `rr-feature-1-modo-oscuro`
+**Entorno:** staging espejo (app en `/rr/app/`)
+**Spec de referencia:** `.rr/ux-modo-oscuro.md` (gate doble ux, entregada pre-código)
+
+## Resultado: NO-GO ⚠️ (desviación del aislamiento §1 de la spec; corrección menor antes de staging)
+
+## Criterios verificados
+
+### 1) Build en `app/` — ✅ PASA
+- `docker compose -f docker-compose.rr.yml build app-rr` con el `Dockerfile` de `app/` (etapa `npm install && npm run build`): imagen construida OK con los args del espejo (`VITE_ADMIN_PATH=/rr/app/admin`, `VITE_GUEST_PATH=/rr/app/reserva`, `VITE_BASE_PATH=/rr/app/`). Solo warnings no bloqueantes (npm audit, import dinámico).
+
+### 2) Alcance del diff: solo `app/`, exactamente los 7 archivos esperados — ✅ PASA
+- `git diff --name-only 6fada5c^..6fada5c` → 7 archivos, todos bajo `app/`:
+  `app/index.html`, `app/src/components/ThemeToggle.tsx`, `app/src/hooks/useTheme.ts`, `app/src/pages/AdminDashboard.tsx`, `app/src/pages/AdminLogin.tsx`, `app/src/pages/DashboardTab.tsx`, `app/src/styles.css`.
+- Working tree: solo `.rr/` (`plan.md` modificado, `qa-veredicto.md` y `ux-modo-oscuro.md`). Nada fuera de `app/` + docs de RR.
+
+### 3) Nada fuera del área admin tocado — ✅ PASA
+- `GuestLogin.tsx`, `GuestReservation.tsx` NO están en el diff (idénticos a `6fada5c^` y a `origin/rr`).
+- `server/`, `landing/`, `agent/`, `scripts/`, compose, nginx, `litestream.yml`: 0 diffs en el commit (verificado con `--stat` excluyendo `app/` = vacío).
+
+### 4) localStorage + data-theme — ✅ FUNCIONA (con desviación estructural, ver Observaciones)
+- **Clave y default**: `rumihome.theme`, `light`|`dark`, default `light`, sin `prefers-color-scheme` (`useTheme.ts`).
+- **Hook**: lee `localStorage`, escribe en toggle y sincroniza `document.documentElement.dataset.theme` (§6 spec: ✓).
+- **Anti-FOUC**: script inline en `app/index.html` lee `localStorage['rumihome.theme']` y setea `data-theme='dark'` en `<html>` SOLO en rutas admin (usa `%VITE_ADMIN_PATH%` con fallback al placeholder `%`), antes de `main.tsx` (§6 spec: ✓).
+- **Aislamiento huésped**: hoy el huésped se ve claro en todos los flujos alcanzables: el script anti-FOUC está gateado por ruta admin y `useTheme` vive solo en montajes de admin; el portal huésped comparte clases (`.auth-card`, `.alert.*`, `.badge.*`, `.btn`) pero al cargar `/reserva` en un documento nuevo `data-theme` nunca se setea.
+- **SVGs de charts**: `DashboardTab.tsx` migra `fill`/`stroke` inline a tokens `var(--chart-*)` con valores por tema (§4 spec: ✓, con naming propio en vez de `var(--muted)`/`var(--text)`).
+
+### 5) Sin deps nuevas — ✅ PASA
+- `app/package.json` y `package-lock.json`: 0 diffs vs `origin/rr` y vs `6fada5c^`. Sin dependencias nuevas.
+
+## Observaciones
+
+### ⚠️ BLOQUEANTE — Contramedida obligatoria §1 NO implementada
+La spec marca como **obligatoria** la contramedida de aislamiento: agregar la clase `admin-theme` a los wrappers de admin (`AdminLogin.tsx` → `auth-wrapper admin-theme`; `AdminDashboard.tsx` → `admin-shell admin-theme`) y escribir TODOS los overrides/tokens oscuros bajo el prefijo `:root[data-theme='dark'] .admin-theme …`. La implementación:
+- **No agrega `admin-theme` en ningún lado** (grep = 0 matcheos en `app/`).
+- Escribe los tokens oscuros a nivel global `:root[data-theme='dark']` y los overrides como `[data-theme='dark'] .auth-card`, `.badge.*`, `.alert.*`, `.cal-day`, `.pill-*`, `tbody td`, etc., **sin prefijo de contenedor admin**.
+
+Riesgo concreto: el portal huésped usa esas mismas clases (`.auth-wrapper`, `.auth-card`, `.alert error/ok/info`, `.badge ${status}`, `.btn`). Hoy no hay ruta SPA que navegue admin→guésped sin recarga de documento (no hay `Link` directo al guest path y el `*` redirige a `/admin`), así que el criterio 3 de aceptación se cumple **por accidente de rutas, no por diseño**. Además `useTheme` no limpia `data-theme` al desmontar; cualquier futuro link admin→huésped (ej. el backlog "soporte a huéspedes") oscurecería el portal del huésped.
+
+**Remediación (small):**
+1. `AdminLogin.tsx`: `<div className="auth-wrapper admin-theme">`; `AdminDashboard.tsx`: `<div className="admin-shell admin-theme">`.
+2. Envolver el bloque de tokens en `:root[data-theme='dark'] .admin-theme { … color-scheme: dark; }` y prefijar los overrides como `[data-theme='dark'] .admin-theme …` (incluye topbar, alerts, badges, tablas, tabs, calendario, modal, pills, device-cards, formularios).
+3. (`color-scheme: dark` queda confinado al bloque admin; el huésped jamás aplica oscuro ni scrollbars/selects oscuros.)
+
+### No bloqueantes (cubiertas por el gate visual de ux)
+- **Paleta**: hex distintos a la spec (§2): `--bg #0d0d0f` (spec `#161619`), `--soft #26262a` (spec `#2C2C2F`), `--tile #19191c` (spec `#1C1C1F`), `--accent-dark #E00B41` (spec `#FF5474`). Misma familia, contraste AA razonable, pero no son los valores aprobados en la spec.
+- **`.btn`**: se migra `color: var(--white)` → `#fff` hardcodeado en lugar del token `--on-accent` de la spec (§2). Resultado visual idéntico (blanco sobre CTA en ambos temas), pero no sigue el token.
+- **ThemeToggle**: usa `role="switch"` + `aria-checked` en vez del `aria-pressed` de la spec (§5) — patrón a11y válido y equivalente; y en el login va en la esquina del `.auth-card` (absoluto) en lugar de `position: fixed` del viewport (§5). Funcional, requiere OK visual de ux.
+- **`.btn.danger`**: la spec overridea bg en oscuro (`#A6402E`); la implementación solo ajusta el hover (`#CE5E58`) y deja el bg base del tema claro. Verificar contraste en el gate visual.
+
+## Veredicto
+**NO-GO** — build, alcance y deps perfectos (criterios 1, 2, 3 y 5 ✅, 4 funcional hoy ⚠️), pero la contramedida de aislamiento del huésped que la spec marca como **obligatoria** quedó fuera: el oscuro se aplica por selectores globales no anclados a un marcador de admin. Corregir el scaffolding `.admin-theme` (remediación arriba, ~3 ediciones) y re-validar antes de deployar a staging.
+
+---
+
+# Adenda — Escenario 1: Re-validación post-fix (commit `16818ec`)
+
+**Fecha:** 2026-09-19
+**Commit validado:** `16818ec rr(frontend): fix scope modo oscuro (NO-GO QA)` (el fix del pedido 16818bc/16818ec quedó consolidado en `16818ec`; `16818bc` no existe en el repo ni en el reflog)
+**Branch:** `rr-feature-1-modo-oscuro`
+**Espec de referencia:** `.rr/ux-modo-oscuro.md` (§1 aislamiento huésped — contramedida obligatoria)
+**Contexto:** re-validación del NO-GO previo (arriba)
+
+## Resultado: GO ✅ (remediación del NO-GO implementada y verificada)
+
+## Criterios verificados (escenario 1 modo oscuro)
+
+### 1) `admin-theme` presente en los wrappers de admin — ✅ PASA
+- `app/src/pages/AdminDashboard.tsx:36` → `<div className="admin-shell admin-theme">` (envuelve topbar + tabs).
+- `app/src/pages/AdminLogin.tsx:36` → `<div className="auth-wrapper admin-theme">`.
+- Portal huésped (`GuestLogin.tsx`, `GuestReservation.tsx`) sin `admin-theme` y sin diff vs `origin/rr`.
+
+### 2) Todos los overrides oscuros prefijados bajo `.admin-theme` — ✅ PASA
+- Grep `:root[data-theme` en `app/src/styles.css`: las 67 ocurrencias (líneas 27 y 54–119) incluyen `… .admin-theme`; **cero** `:root[data-theme='dark']` sueltos sin prefijo (grep inverso = 0 matches).
+- Siendo único CSS con dark selectors: `styles.css`; sin `prefers-color-scheme`.
+- `color-scheme: dark` confinado al bloque `:root[data-theme='dark'] .admin-theme {…}` (línea 28); `:root` base mantiene `color-scheme: light`. Huésped jamás hereda oscuro ni scrollbars/selects oscuros.
+- Riesgo del NO-GO resuelto **por diseño**: aunque `data-theme` existiera en una vista huésped, los tokens oscuros solo se redefinen dentro de `.admin-theme`.
+
+### 3) `useTheme` limpia `data-theme` al desmontar — ✅ PASA
+- `app/src/hooks/useTheme.ts:41-45`: cleanup del `useEffect` ejecuta `delete document.documentElement.dataset.theme`; cualquier desmontaje (p.ej. futura navegación admin→guest) deja el documento sin `data-theme`.
+
+### 4) Build en `app/` — ✅ PASA
+- `npm install --no-fund --no-audit` + `npm run build` (`tsc -b && vite build`) en copia descartable con `node:22-alpine` (mismo runtime del Dockerfile): ✓ 57 módulos, `dist/` generado en 2.68s.
+- Warnings no bloqueantes ya conocidos: placeholder `%VITE_ADMIN_PATH%` (solo en build sin args; en el Dockerfile del espejo la env lo sustituye) y chunk dinámico de `firebase.ts`.
+- `app/` worktree limpio tras la verificación; `app/tsconfig.tsbuildinfo` sin diff vs HEAD.
+
+### 5) Diff solo en `app/` — ✅ PASA
+- `git diff --name-only origin/rr...HEAD` → 7 archivos, todos bajo `app/`: `index.html`, `components/ThemeToggle.tsx`, `hooks/useTheme.ts`, `pages/AdminDashboard.tsx`, `pages/AdminLogin.tsx`, `pages/DashboardTab.tsx`, `styles.css`.
+- Working tree: solo `.rr/` (`plan.md`, este veredicto, `ux-modo-oscuro.md`). Nada en `server/`, `agent/`, `landing/`, `scripts/`, compose, nginx ni DB.
+- `app/package.json` y `package-lock.json`: 0 diffs vs `origin/rr` (sin deps nuevas).
+
+### 6) Veredicto actualizado — ✅ PASA
+
+## Observaciones (no bloqueantes, cubiertas por el gate visual de ux)
+- Se conservan las observaciones no bloqueantes del NO-GO (hex de paleta §2, `.btn` con `#fff` en vez de token `--on-accent`, ThemeToggle con `role="switch"`, `.btn.danger` sin override de bg base). La contramedida obligatoria §1 quedó implementada; lo visual restante es materia del role ux en staging post-deploy.
+
+## Veredicto
+**GO** — la remediación del NO-GO quedó completa en `16818ec`: wrappers con `admin-theme`, 100% de los overrides oscuros prefijados bajo `.admin-theme` y cleanup de `data-theme` al desmontar; build y alcance siguen verdes. Listo para deploy a staging y revisión visual del role ux; la promoción a PROD solo se ejecuta con la aprobación explícita de Daniel ("APROBAR").
