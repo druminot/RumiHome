@@ -106,3 +106,43 @@ Deploy a staging para revisión visual del UX (gate doble), y luego promoción a
 
 ## Veredicto
 **GO** — la reversión cumple los criterios de Daniel. Puede deploysar a staging para revisión visual y posterior promoción, que solo se ejecuta con la aprobación explícita de Daniel ("APROBAR").
+
+---
+
+# Adenda — Escenario 2: Expense Ranking (commit `86dd36f`)
+
+**Fecha:** 2026-09-19
+**Commit validado:** `86dd36f rr(backend): endpoint expense-ranking`
+**Branch:** `rr-feature-2-ranking-gastos`
+**Entorno:** staging espejo (todo dentro de `/opt/rumihome-rr`; DB sobre copia `.rr/qa-copy.db` vía `docker exec rumihome-api-rr node` con `node:sqlite`)
+
+## Resultado: GO ✅ (backend listo para staging)
+
+## Criterios verificados
+
+### 1) Build de `server/` — ✅ PASA
+- `npm run build` (`tsc`) OK con Node 22 (alpine, mismo runtime del Dockerfile), montando `server/` del repo en un container desechable. `dist/` generado sin errores; `server/dist` está gitignored y el working tree quedó limpio.
+
+### 2) Alcance del commit — ✅ PASA
+- `git diff-tree --name-only -r 86dd36f` → solo **3 archivos**: `.rr/plan.md`, `server/src/db/finance.ts`, `server/src/routes/finance.ts`. Nada fuera de `server/` + `.rr/`.
+
+### 3) Ruta bajo `requireAdmin` — ✅ PASA
+- `server/src/index.ts:26` → `app.use('/api', requireAdmin, adminRouter, financeRouter, smarthomeRouter)`. Confirmado también en `dist/index.js:20`. El nuevo `GET /api/analytics/expense-ranking` queda protegido por `requireAdmin`.
+
+### 4) Lógica del endpoint — ✅ PASA
+- **Orden DESC**: `GROUP BY category ORDER BY total DESC` en `getExpenseRanking`.
+- **Porcentaje**: `Math.round((r.total / totalExpenses) * 1000) / 10` (1 decimal, sin dividir por cero).
+- **Regex de mes**: `/^\d{4}-\d{2}$/` en la ruta (valida y devuelve 400 si no matchea; rango del mes se calcula con `YYYY-MM-01` a `nextMonth-01`, excluye meses ajenos).
+- **Default mes = mes anterior** al actual; `property_id` default `1` (convención multi-propiedad vigente).
+- **Prueba real** (`DB_PATH=/qa-copy.db`, copy de `data/rumihome.db`): mes `2026-09` → `total_expenses=28500`, 1 categoría al 100%; total recomputado OK; mes sin gastos → ranking vacío sin error.
+- **Prueba sintética multi-categoría** (3 categorías + 1 de otro mes): orden DESC estricto (65000→40000→20000), porcentajes 52/32/16 OK, filas de otro mes excluidas, suma de porcentajes = 100.
+
+### 5) Veredicto actualizado — ✅ PASA
+
+## Observaciones (no bloqueantes)
+- El container `rumihome-api-rr` corre un build anterior (la ruta no estaba en su `dist`). Se sincronizaron a HEAD los `dist/db/finance.js` y `dist/routes/finance.js` on-disk para coherencia; el proceso en memoria no se tocó. Para servir el endpoint se requiere **rebuild/redeploy** del container (fuera del alcance de esta QA).
+- La copy de DB (`/opt/rumihome-rr/data/rumihome.db` → `.rr/qa-copy.db`) se mantiene junto con los scripts de prueba en `.rr/` como evidencia.
+- La DB de staging tiene un solo gasto real (2026-09, servicios/luz 28500); el multi-categoría se validó con DB sintética.
+
+## Veredicto
+**GO** — el commit `86dd36f` cumple los 5 criterios de Daniel. Listo para deploy a staging (requiere rebuild del container api-rr) y posterior revisión/promoción con la aprobación explícita de Daniel.
