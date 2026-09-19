@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { firebaseEnabled, getAuthInstance, signInWithEmailAndPassword, getIdToken } from '../firebase'
-import RetroScroller from '../components/RetroScroller'
 
 const ADMIN_PATH = import.meta.env.VITE_ADMIN_PATH ?? '/admin'
 
@@ -34,7 +33,6 @@ export default function AdminLoginPage() {
 
   return (
     <div className="auth-wrapper">
-      <RetroScroller />
       <div className="auth-card">
         <Link className="logo" to="/">rumi<span>home</span></Link>
         <p className="subtitle">Acceso administrador — gestión de reservas</p>
@@ -63,7 +61,7 @@ export default function AdminLoginPage() {
             />
           </div>
           <button className="btn full" type="submit" disabled={loading}>
-            {loading ? 'Ingresando…' : '.:: ENTRAR ::.'}
+            {loading ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
       </div>

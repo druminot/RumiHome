@@ -52,8 +52,8 @@ function IncomeChart({ series }: { series: FinanceAnalytics['monthly_series'] })
         const hEx = (s.expenses / max) * (H - PAD * 2)
         return (
           <g key={s.month}>
-            <rect x={x - BW - 2} y={H - PAD - hIn} width={BW} height={Math.max(hIn, 1)} rx="3" fill="#00cc00" />
-            <rect x={x + 2} y={H - PAD - hEx} width={BW} height={Math.max(hEx, 1)} rx="3" fill="#ff00ff" />
+            <rect x={x - BW - 2} y={H - PAD - hIn} width={BW} height={Math.max(hIn, 1)} rx="3" fill="#008234" />
+            <rect x={x + 2} y={H - PAD - hEx} width={BW} height={Math.max(hEx, 1)} rx="3" fill="#0071e3" />
             <text x={x} y={H - 8} textAnchor="middle" fontSize="11" fill="#86868b">
               {MONTHS_ES[Number(s.month.slice(5)) - 1]}
             </text>
@@ -61,10 +61,10 @@ function IncomeChart({ series }: { series: FinanceAnalytics['monthly_series'] })
         )
       })}
       <g>
-        <rect x={W - 150} y={6} width="10" height="10" rx="2" fill="#00cc00" />
-        <text x={W - 135} y={15} fontSize="11" fill="#ff00ff">INGRESOS</text>
-        <rect x={W - 75} y={6} width="10" height="10" rx="2" fill="#ff00ff" />
-        <text x={W - 60} y={15} fontSize="11" fill="#ff00ff">GASTOS</text>
+        <rect x={W - 150} y={6} width="10" height="10" rx="2" fill="#008234" />
+        <text x={W - 135} y={15} fontSize="11" fill="#1d1d1f">Ingresos</text>
+        <rect x={W - 75} y={6} width="10" height="10" rx="2" fill="#0071e3" />
+        <text x={W - 60} y={15} fontSize="11" fill="#1d1d1f">Gastos</text>
       </g>
     </svg>
   )
@@ -97,8 +97,8 @@ function EnergyChart({ data }: { data: SmartHomeSummary['energy_daily'] }) {
         )
       })}
       {/* Línea de promedio */}
-      <line x1={PADL} x2={W - PAD} y1={avgY} y2={avgY} stroke="#00cc00" strokeWidth="1.5" strokeDasharray="5 4" />
-      <text x={W - PAD - 2} y={avgY - 5} textAnchor="end" fontSize="9" fill="#00cc00" fontWeight="600">
+      <line x1={PADL} x2={W - PAD} y1={avgY} y2={avgY} stroke="#008234" strokeWidth="1.5" strokeDasharray="5 4" />
+      <text x={W - PAD - 2} y={avgY - 5} textAnchor="end" fontSize="9" fill="#008234" fontWeight="600">
         prom {avg.toFixed(1)} kWh
       </text>
       {data.map((d, i) => {
@@ -109,8 +109,8 @@ function EnergyChart({ data }: { data: SmartHomeSummary['energy_daily'] }) {
         return (
           <g key={d.date}>
             <title>{`${d.date}: ${total.toFixed(1)} kWh total (huésped ${d.kwh_guest.toFixed(1)}, admin ${d.kwh_admin.toFixed(1)})`}</title>
-            {d.kwh_admin > 0 && <rect x={x - bw / 2} y={PADL + chartH - hA} width={bw} height={Math.max(hA, 1)} rx="3" fill="#ff00ff" />}
-            {d.kwh_guest > 0 && <rect x={x - bw / 2} y={PADL + chartH - hA - hG} width={bw} height={Math.max(hG, 1)} rx="3" fill="#00ccff" />}
+            {d.kwh_admin > 0 && <rect x={x - bw / 2} y={PADL + chartH - hA} width={bw} height={Math.max(hA, 1)} rx="3" fill="#86868b" />}
+            {d.kwh_guest > 0 && <rect x={x - bw / 2} y={PADL + chartH - hA - hG} width={bw} height={Math.max(hG, 1)} rx="3" fill="#0071e3" />}
             <text x={x} y={PADL + chartH - hA - hG - 6} textAnchor="middle" fontSize="9.5" fill="#1d1d1f" fontWeight="600">
               {total > 0 ? total.toFixed(1) : ''}
             </text>
@@ -121,10 +121,10 @@ function EnergyChart({ data }: { data: SmartHomeSummary['energy_daily'] }) {
         )
       })}
       <g>
-        <rect x={PADL} y={6} width="10" height="10" rx="2" fill="#00ccff" />
-        <text x={PADL + 14} y={15} fontSize="10.5" fill="#00ccff" fontWeight="700">HUÉSPED</text>
-        <rect x={PADL + 78} y={6} width="10" height="10" rx="2" fill="#ff00ff" />
-        <text x={PADL + 92} y={15} fontSize="10.5" fill="#ff00ff" fontWeight="700">ADMIN</text>
+        <rect x={PADL} y={6} width="10" height="10" rx="2" fill="#0071e3" />
+        <text x={PADL + 14} y={15} fontSize="10.5" fill="#1d1d1f">Huésped</text>
+        <rect x={PADL + 78} y={6} width="10" height="10" rx="2" fill="#86868b" />
+        <text x={PADL + 92} y={15} fontSize="10.5" fill="#1d1d1f">Admin</text>
       </g>
     </svg>
   )
