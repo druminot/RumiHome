@@ -101,8 +101,17 @@ RumiHome tiene un segundo entorno tipo profesional para desarrollar features con
   - `location /rr/img/` → imágenes de la landing del espejo
   - `location /rr/app/` → app-rr (SPA; Vite base `VITE_BASE_PATH=/rr/app/`, rutas `VITE_ADMIN_PATH=/rr/app/admin`, `VITE_GUEST_PATH=/rr/app/reserva`)
   - `location /rr/api/` → api-rr
-- Config opencode: `/root/.config/opencode-rr/` (opencode.json con provider glm-5.3-flash Ollama Cloud, `agent/*.md` con los prompts, `permissions.json` con bash allowlist que DENIEGA todo lo no listado; `external_directory: deny`, bloqueo `/root` y `/etc/nginx`).
+- Config opencode: `/root/.config/opencode-rr/` (opencode.json con provider glm-5.3-flash Ollama Cloud, `agent/*.md` con los prompts, `permissions.json` con bash allowlist que DENIEGA todo lo no listado; `external_directory: deny`, bloqueo `/root` y `/etc/nginx`). Allowlist incluye verificación determinista: `docker run --rm`, `docker compose *`, `cmp`, `sha256sum`, `wc`, `rm -rf /tmp/*`.
 - Bot puente: servicio systemd `rumihome-dev-bot` (`agent-dev/`, venv en `/opt/rumihome-rr/agent-dev/.venv`), env `/root/dev-agent.env` (TELEGRAM_BOT_TOKEN_DEV, TELEGRAM_CHAT_ID_DEV, OLLAMA_API_KEY compartida).
+
+### Velocidad del pipeline (técnicas de la industria)
+
+- **`opencode serve` persistente** (systemd `opencode-serve`, puerto 127.0.0.1:4096, password en unit): el bot invoca los agentes vía HTTP (`POST /session/:id/message`) con **sesión reutilizable por rol** → cero cold boot por paso (antes ~2-4 min × cada agente). Fallback automático a `opencode run` local si el server no responde.
+- **Timeouts duros por rol** (seg): pm 480 · ux 720 · frontend 720 · backend 720 · qa 600 · supervisor 600. Un agente colgado NUNCA bloquea el flujo.
+- **Paralelismo FE∥BE**: frontend y backend corren con `asyncio.gather` cuando el ruteo pide ambos (ownership disjunto de archivos); QA siempre al final.
+- **Prompts de arranque directo**: cada invocación referencia `.rr/plan.md` + spec y prohíbe re-analizar el problema o releer archivos que no tocará.
+- **QA sin trampas**: qa.md prohíbe explorar `/root`/`~/.nvm` (bloqueado por diseño) y reintentar comandos rechazados; node solo vía containers (`node:22-alpine`).
+- Medición base (feature modo oscuro, sep 2026): PM 470s · UX 405s · FE 287s (∥ con BE) · QA ~18min por atascos de permisos ya corregidos → objetivo < 15 min end-to-end.
 
 ## Backlog / Tareas futuras
 
