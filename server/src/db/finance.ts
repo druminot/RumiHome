@@ -266,6 +266,18 @@ export interface FinanceSummary {
   net: number
 }
 
+export interface ExpenseRankingEntry {
+  category: string
+  total: number
+  percentage: number
+}
+
+export interface ExpenseRanking {
+  month: string
+  total_expenses: number
+  ranking: ExpenseRankingEntry[]
+}
+
 /** Resumen financiero del mes: ingresos (reservas) − gastos − supermercado − publicidad. */
 export function getFinanceSummary(month: string, propertyId?: number): FinanceSummary {
   const from = `${month}-01`
@@ -307,6 +319,35 @@ export function getFinanceSummary(month: string, propertyId?: number): FinanceSu
     expenses_total: expensesTotal + supermarket + adSpend,
     net: income - expensesTotal - supermarket - adSpend,
   }
+}
+
+/** Ranking de gastos por categoría del mes: orden DESC, total por categoría y % del gasto. */
+export function getExpenseRanking(month: string, propertyId?: number): ExpenseRanking {
+  const from = `${month}-01`
+  const nextMonth = new Date(Date.parse(from) + 32 * 86400000)
+  const to = `${nextMonth.toISOString().slice(0, 7)}-01`
+
+  const propFilter = propertyId ? 'AND property_id = ?' : ''
+  const args = propertyId ? [propertyId] : []
+
+  const rows = db.prepare(`
+    SELECT category, SUM(amount) AS total FROM expenses
+    WHERE expense_date >= ? AND expense_date < ? ${propFilter}
+    GROUP BY category ORDER BY total DESC
+  `).all(from, to, ...args) as unknown as { category: string; total: number }[]
+
+  const ranking = rows.filter((r) => r.total > 0).map((r) => ({
+    category: r.category,
+    total: r.total,
+    percentage: 0,
+  }))
+  const totalExpenses = ranking.reduce((s, r) => s + r.total, 0)
+  if (totalExpenses > 0) {
+    for (const entry of ranking) {
+      entry.percentage = Math.round((entry.total / totalExpenses) * 1000) / 10
+    }
+  }
+  return { month, total_expenses: totalExpenses, ranking }
 }
 
 /** Top productos del período (supermercado). */

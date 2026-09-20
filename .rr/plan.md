@@ -1,55 +1,60 @@
-# Plan: Rollback modo oscuro escenario T1
+# Plan: Endpoint GET /api/analytics/expense-ranking
 
 ## Orden de Daniel
-Revertir el modo oscuro: el branch `rr` debe quedar con código **idéntico al
-tag `t1-base`** (`b9d0d2e`). El branch `rr-t1-modo-oscuro` se conserva como
-historial (no se borra). Sin push, sin promote.
+Agregar endpoint `GET /api/analytics/expense-ranking`: ranking de gastos por
+categoría del último mes, ordenado de mayor a menor, con total por categoría y
+porcentaje del gasto. Solo API - nada de UI.
 
-## Estado base (verificado por PM)
-| Referencia | Commit | Nota |
-|---|---|---|
-| `t1-base` | `b9d0d2e` | destino del rollback (diseño claro previo, sin modo oscuro) |
-| `rr` = `origin/rr` | `1436fb5` | "T1 merge historial": merge del modo oscuro (padres: `b9d0d2e` + `b7884a7`) |
-| `rr-t1-modo-oscuro` | `b7884a7` | historial del modo oscuro — NO se toca |
-
-- El diff `t1-base..rr` son 18 archivos: `app/` (ThemeToggle, useTheme,
-  styles.css, index.html, AdminLogin, AdminDashboard, DashboardTab,
-  tsconfig.tsbuildinfo) + `.opencode/agents/*.md` + docs `.rr/`.
-- `server/`, `landing/`, `agent/`, `scripts/`, `docker-compose.rr.yml` NO
-  están en el diff → intocados por la feature.
-- Método elegido: `git revert -m 1 1436fb5` sobre `rr` (merge revert con el
-  primer padre). El árbol resultante queda idéntico a `t1-base` y el historial
-  del merge se conserva (historia publicada en `origin/rr` no se reescribe;
-  `reset --hard` queda descartado por reescribir historia publicada).
+Branch de trabajo: `rr-t2-ranking` (ya existe, árbol limpio en `1bdb068`; NO
+crear branch nuevo). Staging disponible para QA: `rumihome-api-rr`.
 
 ## RUTEO
-Regla aplicada: rollback de UI ya implementada (sin diseño nuevo) → frontend
-ejecuta la reversión; QA siempre. El resultado del revert deshace TODO el
-diff, incluidos `.opencode/agents/` y docs `.rr/` (restauración literal del
-árbol a `t1-base`, no edición manual).
-- ux: NO APLICA — no hay spec nueva ni diseño; se restaura la identidad
-  visual previa de `t1-base` tal cual (`git revert` la devuelve sin intervención).
-- frontend: APLICA — ejecuta el revert del merge en `rr`; todo el código de
-  producto afectado es `app/` (modo oscuro del admin).
-- backend: NO APLICA — sin cambios en `server/` ni API.
-- qa: APLICA — verifica identidad del árbol con `t1-base` + build + veredicto.
+Regla aplicada: solo API/datos sin cambio visual → backend; QA siempre.
+- ux: NO APLICA — feature explícitamente "Solo API - nada de UI"; sin cambio visual.
+- frontend: NO APLICA — nada que consumir en la UI; no se toca `app/` ni `landing/`.
+- backend: APLICA — función de ranking nueva en `server/src/db/finance.ts` + ruta nueva en `server/src/routes/finance.ts` (montada en `/api` junto a `/analytics/finance`).
+- qa: APLICA — build + prueba funcional contra staging + veredicto GO/NO-GO.
+
+SUPUESTOS (decisiones de alcance tomadas, sin bloquear a Daniel):
+1. "Último mes" = mes calendario ANTERIOR al actual (hoy 2026-09-20 → 2026-08),
+   valor por defecto del endpoint; acepta `?month=YYYY-MM` opcional (mismo
+   patrón que `/analytics/finance`).
+2. "Gastos por categoría" = tabla `expenses` (categorías: servicios, mantencion,
+   comision, insumos, otro), consistente con `expenses_by_category` de
+   `getFinanceSummary`. Supermercado y publicidad quedan FUERA: no tienen
+   categoría en el mismo esquema (productos / plataformas).
+3. `property_id` opcional con default 1 (convención del negocio: property_id=1
+   hardcodeado); filtrable vía query.
+4. `percentage` redondeado a 1 decimal, base = suma de las categorías del mes;
+   solo categorías con gasto > 0; orden DESC por total.
 
 ## TAREAS
-1. [frontend] Rollback modo oscuro en rr
-   - Criterios: en `git checkout rr` (árbol limpio antes); `git revert -m 1
-     1436fb5` con mensaje estilo repo (ej. "rr(frontend): rollback modo
-     oscuro (escenario T1)"); verificar `git diff t1-base rr` = **vacío**
-     (0 archivos); confirmar `git diff t1-base origin/rr` sigue mostrando el
-     diff del modo oscuro si NO se hizo push (o vacío si el pipeline pushea
-     el revert). NO tocar `server/`, `landing/`, `agent/`, `scripts/`,
-     `docker-compose.rr.yml`, `litestream.yml`. NO borrar ni alterar
-     `rr-t1-modo-oscuro`. NO push ni promote.
+1. [backend] Ranking de gastos por categoria (API)
+   - Criterios: en `server/src/db/finance.ts` agregar tipos
+     `ExpenseRankingEntry {category,total,percentage}` y
+     `ExpenseRanking {month,total_expenses,ranking}` + función
+     `getExpenseRanking(month, propertyId?)`: `from = ${month}-01`, `to` =
+     primer día del mes siguiente (mismo patrón que `getFinanceSummary`);
+     query `SELECT category, SUM(amount) AS total FROM expenses WHERE
+     expense_date >= ? AND expense_date < ? [AND property_id = ?] GROUP BY
+     category ORDER BY total DESC`; `total_expenses` = suma de totales;
+     `percentage` = `Math.round((total/total_expenses)*1000)/10`, 0 si no hay
+     gastos. En `server/src/routes/finance.ts` importar `getExpenseRanking` y
+     agregar `financeRouter.get('/analytics/expense-ranking', ...)`: month por
+     defecto = mes calendario anterior; validar `?month` con `/^\d{4}-\d{2}$/`
+     → 400 `{error:'Mes inválido'}`; `?property_id` default 1; respuesta 200
+     `{month, property_id, total_expenses, ranking}`. `npm run typecheck` en
+     `server/` pasa sin errores. No tocar `app/`, `landing/`, otros routers ni auth.
    - Estado: hecha
-2. [qa] Verificacion rollback
-   - Criterios: `git diff t1-base rr` sin salida; `npm run build` en `app/`
-     pasa limpio; no existen `ThemeToggle.tsx` ni `useTheme.ts`; sin
-     `data-theme` ni anti-FOUC en `app/index.html`; portal huésped intacto;
-     veredicto GO/NO-GO escrito en `.rr/qa-veredicto.md`.
+2. [qa] Veredicto endpoint expense-ranking
+   - Criterios: `npm run build` en `server/` pasa limpio; diff limitado a
+     `server/src/db/finance.ts` y `server/src/routes/finance.ts` (sin UI);
+     prueba funcional contra `rumihome-api-rr` con curl: sin params → mes
+     2026-08, ranking DESC, porcentajes suman ≈100 (1 decimal); `?month=2026-08`
+     consistente; `?month=invalido` → 400; `?property_id=1` OK; shape
+     `{month, property_id, total_expenses, ranking:[{category,total,percentage}]}`
+     con solo categorías de gasto > 0; veredicto GO/NO-GO escrito en
+     `.rr/qa-veredicto.md`.
    - Estado: pendiente
 
 ## DESVIACIONES

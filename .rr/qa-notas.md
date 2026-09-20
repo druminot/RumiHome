@@ -54,3 +54,42 @@ Cero cambios en `server/`, `agent/`, `landing/`, `scripts/`, compose, nginx, DB.
 
 ## Resultado
 Todos los criterios del pedido de QA pasan → **GO** (ver `.rr/qa-veredicto.md`).
+---
+
+# QA/Backend Notas — Endpoint GET /api/analytics/expense-ranking (rama `rr-t2-ranking`)
+
+**Fecha:** 2026-09-20
+**Rol:** Backend (pruebas funcionales pre-QA)
+
+## 1. Estado
+- Branch: `rr-t2-ranking`, HEAD previo `1bdb068`. Sin `.rr/HALT`.
+- Cambios: solo `server/src/db/finance.ts` + `server/src/routes/finance.ts` (nada en app/, landing/, otros routers, auth).
+
+## 2. Build (docker node:22-alpine)
+- `npm run typecheck` → OK sin errores.
+- `npm run build` → OK sin errores.
+- Rebuild imagen api-rr (`docker compose -f docker-compose.rr.yml up -d --build api-rr`) → container recreado; `dist/routes/finance.js` contiene `expense-ranking`.
+
+## 3. Datos de prueba sembrados en DB staging (para QA)
+- Insertados en `expenses` (descripción `QA prueba expense-ranking`):
+  - id 2: servicios/luz 30000 @ 2026-08-05
+  - id 3: mantencion 20000 @ 2026-08-12
+  - id 4: insumos 5000 @ 2026-08-20
+- Pre-existente: id 1 servicios 28500 @ 2026-09-01 ("Cuenta septiembre").
+- Borrar con `DELETE /api/expenses/{id}` o reset staging (`staging-seed.db`).
+
+## 4. Prueba funcional (server efímero con financeRouter dentro del container, DB staging)
+| Caso | HTTP | Respuesta |
+|---|---|---|
+| sin params (default = mes anterior) | 200 | `{"month":"2026-08","property_id":1,"total_expenses":55000,"ranking":[{"category":"servicios","total":30000,"percentage":54.5},{"category":"mantencion","total":20000,"percentage":36.4},{"category":"insumos","total":5000,"percentage":9.1}]}` |
+| `?month=2026-08` | 200 | idéntico al default (consistente) |
+| `?month=2026-08&property_id=1` | 200 | idéntico |
+| `?month=2026-07` (sin gastos) | 200 | `{"month":"2026-07","property_id":1,"total_expenses":0,"ranking":[]}` |
+| `?month=invalido` | 400 | `{"error":"Mes inválido"}` |
+| `?month=2026-13` / `?month=2026-00` | 400 | `{"error":"Mes inválido"}` (validación extra de rango 01–12, evita 500) |
+| `?month=2026-08&property_id=abc` | 400 | `{"error":"Propiedad inválida"}` |
+
+- Ranking DESC ✔ (30000 > 20000 > 5000); porcentajes suman 100.0 (54.5+36.4+9.1) ✔; shape `{month, property_id, total_expenses, ranking:[{category,total,percentage}]}` ✔; solo categorías con gasto > 0 ✔.
+
+## 5. Auth real del staging
+- `GET http://127.0.0.1:3001/api/analytics/expense-ranking?month=2026-08` (api-rr real, sin token) → **401 `{"error":"No autenticado"}`** → ruta montada bajo `requireAdmin` ✔.
