@@ -121,6 +121,15 @@ RumiHome tiene un segundo entorno tipo profesional para desarrollar features con
 - **PM v2** (pm.md): clasificación SIMPLE/MEDIA/COMPLEJA con escalamiento de esfuerzo, delegación con 4 campos (objetivo/entregable/límites/éxito), sección SUPUESTOS en plan.md, protocolo de fallos, monitoreo con ground truth, anti-anchoring en bugs.
 - **Medición T3** (testimonios, sep 2026, grafo v2): **PM 126s** · total **1521s (~25min)** end-to-end — 2× más rápido que la medición pre-LangGraph (~49min), con progreso visible en Telegram y rollback limpio.
 
+## Automatización con n8n
+
+n8n corre en Docker en el VPS: `https://n8n.rumihome.io` (editor con auth propia de n8n, owner Daniel; webhooks `/webhook/*` públicos — cada workflow valida su propio token/secret). Infra versionada en `infra/n8n/` (docker-compose, nginx, backup.sh con export diario de workflows a `n8n/workflows/` → GitHub; runbook en `infra/n8n/SETUP.md`).
+
+- **Regla para el equipo dev**: antes de rutear una feature, evaluar si es AUTOMATIZACIÓN (ver regla completa en pm.md): n8n gana para SaaS estándar / cron / notificaciones / reportes; código gana para lógica de negocio RumiHome; mixto = n8n orquesta y llama `/rr/api/...`.
+- **Entregable [n8n]**: JSON del workflow en `n8n/workflows/` + instrucciones de importación. Daniel lo importa con 1 click y solo asigna credenciales/permisos.
+- **PROHIBIDO para agentes dev**: acceder a la instancia n8n, su API, sus credenciales o su volumen. No existe API key de n8n para agentes.
+- **Restauración desde cero**: clonar repo → `infra/n8n/SETUP.md` → importar `n8n/workflows/*.json` → re-ingresar credenciales a mano (secrets nunca en GitHub).
+
 ## Backlog / Tareas futuras
 
 - [ ] **Soporte a huéspedes por Telegram** — agente AISLADO (política de contexto), acceso solo lectura a SU reserva por PNR + clave de puerta.
