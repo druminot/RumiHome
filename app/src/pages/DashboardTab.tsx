@@ -44,7 +44,7 @@ function IncomeChart({ series }: { series: FinanceAnalytics['monthly_series'] })
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Ingresos vs gastos por mes" className="chart">
       {[0.25, 0.5, 0.75, 1].map((f) => (
         <line key={f} x1={PAD} x2={W - PAD} y1={H - PAD - (H - PAD * 2) * f} y2={H - PAD - (H - PAD * 2) * f}
-          stroke="var(--chart-grid)" strokeWidth="1" />
+          stroke="#E8E8ED" strokeWidth="1" />
       ))}
       {series.map((s, i) => {
         const x = PAD + i * step + step / 2
@@ -52,19 +52,19 @@ function IncomeChart({ series }: { series: FinanceAnalytics['monthly_series'] })
         const hEx = (s.expenses / max) * (H - PAD * 2)
         return (
           <g key={s.month}>
-            <rect x={x - BW - 2} y={H - PAD - hIn} width={BW} height={Math.max(hIn, 1)} rx="3" fill="var(--chart-green)" />
-            <rect x={x + 2} y={H - PAD - hEx} width={BW} height={Math.max(hEx, 1)} rx="3" fill="var(--chart-blue)" />
-            <text x={x} y={H - 8} textAnchor="middle" fontSize="11" fill="var(--chart-axis)">
+            <rect x={x - BW - 2} y={H - PAD - hIn} width={BW} height={Math.max(hIn, 1)} rx="3" fill="#008234" />
+            <rect x={x + 2} y={H - PAD - hEx} width={BW} height={Math.max(hEx, 1)} rx="3" fill="#0071e3" />
+            <text x={x} y={H - 8} textAnchor="middle" fontSize="11" fill="#86868b">
               {MONTHS_ES[Number(s.month.slice(5)) - 1]}
             </text>
           </g>
         )
       })}
       <g>
-        <rect x={W - 150} y={6} width="10" height="10" rx="2" fill="var(--chart-green)" />
-        <text x={W - 135} y={15} fontSize="11" fill="var(--chart-text)">Ingresos</text>
-        <rect x={W - 75} y={6} width="10" height="10" rx="2" fill="var(--chart-blue)" />
-        <text x={W - 60} y={15} fontSize="11" fill="var(--chart-text)">Gastos</text>
+        <rect x={W - 150} y={6} width="10" height="10" rx="2" fill="#008234" />
+        <text x={W - 135} y={15} fontSize="11" fill="#1d1d1f">Ingresos</text>
+        <rect x={W - 75} y={6} width="10" height="10" rx="2" fill="#0071e3" />
+        <text x={W - 60} y={15} fontSize="11" fill="#1d1d1f">Gastos</text>
       </g>
     </svg>
   )
@@ -89,16 +89,16 @@ function EnergyChart({ data }: { data: SmartHomeSummary['energy_daily'] }) {
         const y = PADL + chartH - f * chartH
         return (
           <g key={f}>
-            <line x1={PADL} x2={W - PAD} y1={y} y2={y} stroke="var(--chart-grid)" strokeWidth="1" />
-            <text x={PADL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="var(--chart-axis)">
+            <line x1={PADL} x2={W - PAD} y1={y} y2={y} stroke="#E8E8ED" strokeWidth="1" />
+            <text x={PADL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#86868b">
               {(niceMax * f).toFixed(1)}
             </text>
           </g>
         )
       })}
       {/* Línea de promedio */}
-      <line x1={PADL} x2={W - PAD} y1={avgY} y2={avgY} stroke="var(--chart-green)" strokeWidth="1.5" strokeDasharray="5 4" />
-      <text x={W - PAD - 2} y={avgY - 5} textAnchor="end" fontSize="9" fill="var(--chart-green)" fontWeight="600">
+      <line x1={PADL} x2={W - PAD} y1={avgY} y2={avgY} stroke="#008234" strokeWidth="1.5" strokeDasharray="5 4" />
+      <text x={W - PAD - 2} y={avgY - 5} textAnchor="end" fontSize="9" fill="#008234" fontWeight="600">
         prom {avg.toFixed(1)} kWh
       </text>
       {data.map((d, i) => {
@@ -109,22 +109,22 @@ function EnergyChart({ data }: { data: SmartHomeSummary['energy_daily'] }) {
         return (
           <g key={d.date}>
             <title>{`${d.date}: ${total.toFixed(1)} kWh total (huésped ${d.kwh_guest.toFixed(1)}, admin ${d.kwh_admin.toFixed(1)})`}</title>
-            {d.kwh_admin > 0 && <rect x={x - bw / 2} y={PADL + chartH - hA} width={bw} height={Math.max(hA, 1)} rx="3" fill="var(--chart-axis)" />}
-            {d.kwh_guest > 0 && <rect x={x - bw / 2} y={PADL + chartH - hA - hG} width={bw} height={Math.max(hG, 1)} rx="3" fill="var(--chart-blue)" />}
-            <text x={x} y={PADL + chartH - hA - hG - 6} textAnchor="middle" fontSize="9.5" fill="var(--chart-text)" fontWeight="600">
+            {d.kwh_admin > 0 && <rect x={x - bw / 2} y={PADL + chartH - hA} width={bw} height={Math.max(hA, 1)} rx="3" fill="#86868b" />}
+            {d.kwh_guest > 0 && <rect x={x - bw / 2} y={PADL + chartH - hA - hG} width={bw} height={Math.max(hG, 1)} rx="3" fill="#0071e3" />}
+            <text x={x} y={PADL + chartH - hA - hG - 6} textAnchor="middle" fontSize="9.5" fill="#1d1d1f" fontWeight="600">
               {total > 0 ? total.toFixed(1) : ''}
             </text>
-            <text x={x} y={H - 8} textAnchor="middle" fontSize="9.5" fill="var(--chart-axis)">
+            <text x={x} y={H - 8} textAnchor="middle" fontSize="9.5" fill="#86868b">
               {d.date.slice(8)}
             </text>
           </g>
         )
       })}
       <g>
-        <rect x={PADL} y={6} width="10" height="10" rx="2" fill="var(--chart-blue)" />
-        <text x={PADL + 14} y={15} fontSize="10.5" fill="var(--chart-text)">Huésped</text>
-        <rect x={PADL + 78} y={6} width="10" height="10" rx="2" fill="var(--chart-axis)" />
-        <text x={PADL + 92} y={15} fontSize="10.5" fill="var(--chart-text)">Admin</text>
+        <rect x={PADL} y={6} width="10" height="10" rx="2" fill="#0071e3" />
+        <text x={PADL + 14} y={15} fontSize="10.5" fill="#1d1d1f">Huésped</text>
+        <rect x={PADL + 78} y={6} width="10" height="10" rx="2" fill="#86868b" />
+        <text x={PADL + 92} y={15} fontSize="10.5" fill="#1d1d1f">Admin</text>
       </g>
     </svg>
   )
@@ -142,8 +142,8 @@ function OccupancyChart({ series }: { series: OccupancySeries['series'] }) {
         const y = H - PAD_B - f * plotH
         return (
           <g key={f}>
-            <line x1={30} x2={W - PAD_R} y1={y} y2={y} stroke="var(--chart-grid)" strokeWidth="1" />
-            <text x={28} y={y + 3} textAnchor="end" fontSize="9" fill="var(--chart-axis)">
+            <line x1={30} x2={W - PAD_R} y1={y} y2={y} stroke="#E8E8ED" strokeWidth="1" />
+            <text x={28} y={y + 3} textAnchor="end" fontSize="9" fill="#86868b">
               {Math.round(f * 100)}%
             </text>
           </g>
@@ -157,13 +157,13 @@ function OccupancyChart({ series }: { series: OccupancySeries['series'] }) {
         return (
           <g key={s.month}>
             <title>{`${mes} ${s.month.slice(0, 4)}: ${s.occupancy_percent}% (${s.occupied_nights} de ${s.capacity_nights} noches)`}</title>
-            <rect x={x - bw / 2} y={barTop} width={bw} height={Math.max(h, 1)} rx="3" fill="var(--sage)" />
+            <rect x={x - bw / 2} y={barTop} width={bw} height={Math.max(h, 1)} rx="3" fill="#8CA18B" />
             {s.occupancy_percent > 0 && (
-              <text x={x} y={barTop - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--chart-text)">
+              <text x={x} y={barTop - 5} textAnchor="middle" fontSize="10" fontWeight="600" fill="#1d1d1f">
                 {s.occupancy_percent}%
               </text>
             )}
-            <text x={x} y={H - 6} textAnchor="middle" fontSize="10" fill="var(--chart-axis)">
+            <text x={x} y={H - 6} textAnchor="middle" fontSize="10" fill="#86868b">
               {mes}
             </text>
           </g>

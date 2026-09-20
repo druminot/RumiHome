@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { firebaseEnabled, getAuthInstance, signInWithEmailAndPassword, getIdToken } from '../firebase'
-import ThemeToggle from '../components/ThemeToggle'
 
 const ADMIN_PATH = import.meta.env.VITE_ADMIN_PATH ?? '/admin'
 
@@ -33,9 +32,8 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="auth-wrapper admin-theme">
+    <div className="auth-wrapper">
       <div className="auth-card">
-        <ThemeToggle className="theme-toggle--corner" />
         <Link className="logo" to="/">rumi<span>home</span></Link>
         <p className="subtitle">Acceso administrador — gestión de reservas</p>
         {error && <div className="alert error" role="alert">{error}</div>}
