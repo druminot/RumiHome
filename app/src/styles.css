@@ -15,6 +15,13 @@
   --sage-deep: #5F7A5F;
   --white: #ffffff;
   --error: #b3402e;
+  --on-accent: #ffffff;
+  --chart-grid: #E8E8ED;
+  --chart-green: #008234;
+  --chart-blue: #0071e3;
+  --chart-axis: #86868b;
+  --chart-text: #1d1d1f;
+  color-scheme: light;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -48,6 +55,7 @@ a { color: var(--accent-cta); }
 }
 
 .auth-card {
+  position: relative;
   width: 100%;
   max-width: 420px;
   background: var(--white);
@@ -98,7 +106,7 @@ a { color: var(--accent-cta); }
 .btn {
   display: inline-block;
   background: var(--accent-cta);
-  color: var(--white);
+  color: var(--on-accent);
   padding: 0.85rem 1.8rem;
   border-radius: 50px;
   border: none;
@@ -147,6 +155,34 @@ a { color: var(--accent-cta); }
 .admin-topbar .logo { font-weight: 700; font-size: 1.2rem; color: var(--dark); text-decoration: none; }
 .admin-topbar .logo span { color: var(--accent-cta); }
 .admin-topbar .whoami { font-size: 0.9rem; color: var(--text-soft); margin-right: 1rem; }
+.admin-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* ---------- Toggle tema (solo admin) ---------- */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid var(--gray);
+  background: transparent;
+  color: var(--dark);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .15s, border-color .15s;
+}
+.theme-toggle:hover { background: var(--soft); }
+.theme-toggle svg { width: 22px; height: 22px; }
+.theme-toggle--corner {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
 
 .admin-content { padding: 2.5rem 4vw 4rem; }
 .admin-content h2 { font-size: clamp(1.7rem, 3vw, 2.1rem); letter-spacing: -0.025em; margin-bottom: 0.3rem; }
@@ -753,3 +789,180 @@ td.actions { white-space: nowrap; display: flex; gap: 0.5rem; justify-content: f
   flex-shrink: 0;
 }
 .key-badge.open { color: #6B8767; }
+
+/* ============================================================
+   MODO OSCURO — SOLO área admin (`.admin-theme`)
+   El portal huésped no tiene `.admin-theme`, por lo que jamás
+   hereda estos valores aunque `data-theme` esté en <html>.
+   ============================================================ */
+:root[data-theme='dark'] .admin-theme {
+  --bg: #161619;
+  --dark: #F5F5F7;
+  --text: #E6E6EA;
+  --text-soft: #A1A1A6;
+  --soft: #2C2C2F;
+  --tile: #1C1C1F;
+  --wood: #6B5433;
+  --gray: #636366;
+  --muted: #98989D;
+  --accent: #FF385C;
+  --accent-cta: #FF385C;
+  --accent-dark: #FF5474;
+  --sage: #5A745A;
+  --sage-deep: #4C5E4C;
+  --white: #1C1C1F;
+  --on-accent: #FFFFFF;
+  --error: #FF7A66;
+  --chart-grid: #3A3A3F;
+  --chart-green: #34C759;
+  --chart-blue: #0A84FF;
+  --chart-axis: #98989F;
+  --chart-text: #F5F5F7;
+  color-scheme: dark;
+}
+
+/* ---------- Layout / superficies ---------- */
+:root[data-theme='dark'] .admin-theme .admin-topbar {
+  background: rgba(22, 22, 25, 0.78);
+  border-bottom: 1px solid rgba(245, 245, 247, 0.08);
+}
+:root[data-theme='dark'] .admin-theme .auth-card,
+:root[data-theme='dark'] .admin-theme .table-wrap,
+:root[data-theme='dark'] .admin-theme .stat-card,
+:root[data-theme='dark'] .admin-theme .calendar-section {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+:root[data-theme='dark'] .admin-theme .modal-backdrop { background: rgba(0, 0, 0, 0.6); }
+:root[data-theme='dark'] .admin-theme .modal { box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6); }
+
+/* ---------- Botones / alerts ---------- */
+:root[data-theme='dark'] .admin-theme .btn.danger:hover { background: #E0563E; }
+:root[data-theme='dark'] .admin-theme .alert.error {
+  background: #2A1512;
+  color: var(--error);
+  border: 1px solid #4A241D;
+}
+:root[data-theme='dark'] .admin-theme .alert.ok {
+  background: #0F2A1B;
+  color: #7CDB7C;
+  border: 1px solid #2E5C3B;
+}
+:root[data-theme='dark'] .admin-theme .alert.info {
+  background: var(--soft);
+  color: var(--text-soft);
+  border: 1px solid var(--gray);
+}
+
+/* ---------- Tabla ---------- */
+:root[data-theme='dark'] .admin-theme tbody td { border-bottom: 1px solid var(--soft); }
+:root[data-theme='dark'] .admin-theme tbody tr:hover { background: #26262A; }
+
+/* ---------- Badges ---------- */
+:root[data-theme='dark'] .admin-theme .badge.pendiente { background: #3B2A10; color: #FFD9A0; }
+:root[data-theme='dark'] .admin-theme .badge.confirmada { background: #0F2E1C; color: #9DF0C0; }
+:root[data-theme='dark'] .admin-theme .badge.cancelada { background: #3A1510; color: #FFB4A6; }
+
+/* ---------- Calendario ---------- */
+:root[data-theme='dark'] .admin-theme .cal-day {
+  background: #26262A;
+  border: 1px solid #2E2E33;
+}
+:root[data-theme='dark'] .admin-theme .cal-day.libre { background: #26262A; }
+:root[data-theme='dark'] .admin-theme .legend.libre::before {
+  background: #26262A;
+  border: 1px solid var(--gray);
+}
+
+/* ---------- Tabs y subtabs ---------- */
+:root[data-theme='dark'] .admin-theme .main-tab { color: var(--text-soft); }
+:root[data-theme='dark'] .admin-theme .main-tab:hover { color: var(--dark); }
+:root[data-theme='dark'] .admin-theme .main-tab.active {
+  background: var(--soft);
+  color: var(--dark);
+}
+:root[data-theme='dark'] .admin-theme .subtabs { border-bottom: 2px solid var(--soft); }
+:root[data-theme='dark'] .admin-theme .subtab { color: var(--text-soft); }
+:root[data-theme='dark'] .admin-theme .subtab:hover { color: var(--dark); }
+:root[data-theme='dark'] .admin-theme .subtab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ---------- Dashboard ---------- */
+:root[data-theme='dark'] .admin-theme .dashboard-section {
+  background: var(--tile);
+  border: 1px solid var(--soft);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme='dark'] .admin-theme .dashboard-section h4 { color: var(--dark); }
+:root[data-theme='dark'] .admin-theme .stat-card span.pos,
+:root[data-theme='dark'] .admin-theme .stat-card .stat-small.positive,
+:root[data-theme='dark'] .admin-theme .device-state.on,
+:root[data-theme='dark'] .admin-theme .key-badge.open { color: #7CDB7C; }
+:root[data-theme='dark'] .admin-theme .stat-card span.neg { color: var(--accent); }
+:root[data-theme='dark'] .admin-theme .cat-list li,
+:root[data-theme='dark'] .admin-theme .mini-table td,
+:root[data-theme='dark'] .admin-theme .event-list li { border-bottom: 1px dashed var(--soft); }
+:root[data-theme='dark'] .admin-theme .mini-table th {
+  color: var(--text-soft);
+  border-bottom: 1px solid var(--soft);
+}
+:root[data-theme='dark'] .admin-theme .cat-list small,
+:root[data-theme='dark'] .admin-theme .event-list small,
+:root[data-theme='dark'] .admin-theme .device-info small,
+:root[data-theme='dark'] .admin-theme .device-state,
+:root[data-theme='dark'] .admin-theme .device-seen,
+:root[data-theme='dark'] .admin-theme .muted,
+:root[data-theme='dark'] .admin-theme .hour-label { color: var(--text-soft); }
+:root[data-theme='dark'] .admin-theme .key-dot { background: var(--muted); }
+:root[data-theme='dark'] .admin-theme .key-dot.open { background: var(--chart-green); }
+:root[data-theme='dark'] .admin-theme .inline-form {
+  background: #26262A;
+  border: 1px solid var(--soft);
+}
+:root[data-theme='dark'] .admin-theme .draft-total { color: var(--dark); }
+:root[data-theme='dark'] .admin-theme .hour-bar-fill { background: var(--accent); }
+:root[data-theme='dark'] .admin-theme .stat-card.accent { border-left: 3px solid var(--accent); }
+
+/* ---------- Pill / dispositivo / uso ---------- */
+:root[data-theme='dark'] .admin-theme .pill-group { background: var(--soft); }
+:root[data-theme='dark'] .admin-theme .pill { color: var(--text-soft); }
+:root[data-theme='dark'] .admin-theme .pill.active {
+  background: var(--tile);
+  color: var(--dark);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme='dark'] .admin-theme .device-card {
+  background: #26262A;
+  border: 1px solid var(--soft);
+}
+:root[data-theme='dark'] .admin-theme .device-card.on { border-color: var(--chart-green); }
+:root[data-theme='dark'] .admin-theme .usage-bar { background: var(--soft); }
+:root[data-theme='dark'] .admin-theme .usage-bar-fill {
+  background: linear-gradient(90deg, var(--chart-blue), var(--accent));
+}
+
+/* ---------- Toolbar / selects / placeholders ---------- */
+:root[data-theme='dark'] .admin-theme .toolbar .search {
+  background: var(--tile);
+  color: var(--text);
+  border-color: var(--gray);
+}
+:root[data-theme='dark'] .admin-theme select {
+  color-scheme: dark;
+  background: var(--tile);
+  color: var(--text);
+  border-color: var(--gray);
+}
+:root[data-theme='dark'] .admin-theme input::placeholder,
+:root[data-theme='dark'] .admin-theme textarea::placeholder,
+:root[data-theme='dark'] .admin-theme .toolbar .search::placeholder { color: var(--text-soft); }
+
+/* ---------- Toggle en oscuro ---------- */
+:root[data-theme='dark'] .admin-theme .theme-toggle:hover { background: var(--soft); }
+
+@media (max-width: 640px) {
+  .admin-topbar { flex-wrap: wrap; row-gap: 0.4rem; }
+  .admin-topbar .whoami { display: none; }
+  .main-tabs { margin-left: 0; }
+}
