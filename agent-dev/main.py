@@ -36,6 +36,12 @@ RR_DIR = Path("/opt/rumihome-rr")
 RR_CONFIG_DIR = "/root/.config/opencode-rr"
 HALT = RR_DIR / ".rr" / "HALT"
 
+# Timeouts duros por rol (segundos) — un agente colgado NUNCA bloquea el flujo
+TIMEOUTS = {"pm": 480, "ux": 720, "frontend": 720, "backend": 720, "qa": 600, "supervisor": 600}
+
+# Sesiones opencode server reutilizables por rol (persistencia de contexto)
+_sessions: dict[str, str] = {}
+
 # Estados del flujo: idle → planning → awaiting_approval → executing → done
 _state = {
     "state": "idle",  # idle | planning | awaiting_approval | executing | done
@@ -66,9 +72,47 @@ def _run(cmd: list, cwd: Path = RR_DIR, timeout: int = 900, opencode: bool = Fal
         return 1, str(e)
 
 
-def _agent(agent: str, instruction: str, timeout: int = 900) -> tuple[int, str]:
-    """Invoca opencode headless con el agente dado, config RR, en /opt/rumihome-rr."""
-    return _run(["opencode", "run", "--agent", agent, instruction], timeout=timeout, opencode=True)
+def _agent(agent: str, instruction: str, timeout: int | None = None) -> tuple[int, str]:
+    """Invoca el agente vía opencode server persistente (sin cold boot).
+
+    Técnica de la industria (Claude Code --continue, opencode --attach):
+    sesión por rol reutilizable → el contexto del repo se carga una vez por rol.
+    Fallback a opencode run local si el server no responde."""
+    if timeout is None:
+        timeout = TIMEOUTS.get(agent, 720)
+    instruccion = f"{instruction}\n\n(ARRANQUE DIRECTO: el contexto completo está en .rr/plan.md y specs de .rr/. NO re-analices el problema ni releas archivos que no vas a tocar. Ve directo a tu tarea.)"
+
+    import httpx
+
+    base = "http://127.0.0.1:4096"
+    auth = ("opencode", "rr-serve-6cc594626b2b")
+    try:
+        client = httpx.Client(timeout=timeout, auth=auth)
+        # sesión reutilizable por rol
+        if agent not in _sessions:
+            res = client.post(f"{base}/session", json={"title": f"dev-bot-{agent}"})
+            res.raise_for_status()
+            _sessions[agent] = res.json()["id"]
+        sid = _sessions[agent]
+        res = client.post(
+            f"{base}/session/{sid}/message",
+            json={"agent": agent, "parts": [{"type": "text", "text": instruccion}]},
+        )
+        if res.status_code == 409 or res.status_code >= 500:
+            # sesión atascada → abortar y reintentar una vez
+            client.post(f"{base}/session/{sid}/abort")
+            res = client.post(
+                f"{base}/session/{sid}/message",
+                json={"agent": agent, "parts": [{"type": "text", "text": instruccion}]},
+            )
+        res.raise_for_status()
+        data = res.json()
+        partes = data.get("parts", [])
+        textos = [p.get("text", "") for p in partes if p.get("type") == "text"]
+        return 0, ("\n".join(textos))[-3500:] or "(sin salida)"
+    except Exception as e:
+        log.warning("Server opencode falló (%s) — fallback a opencode run local", e)
+        return _run(["opencode", "run", "--agent", agent, instruccion], timeout=timeout, opencode=True)
 
 
 async def _send(chat_id: int, text: str, context) -> None:
@@ -273,27 +317,71 @@ async def _execute_pipeline(chat_id: int, context) -> None:
 
     salida_qa = ""
     qa_go = False
-    for agente in ("ux", "frontend", "backend", "qa"):
-        if not route.get(agente):
-            continue
+
+    async def _run_step(agente: str) -> tuple[str, str, int]:
         etiqueta, instruccion = pasos[agente]
-        # tarea(s) del plan que corresponden a este agente
         tdesc = next((d for n, a, d in tasks if a == agente), agente)
         idx = _state["done_steps"] + 1
         await _send(chat_id, f"▶️ {idx}/{_state['total_steps']} — {etiqueta} trabajando: {tdesc}…")
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-        rc, out = _agent(agente, instruccion, timeout=1800)
+        rc, out = _agent(agente, instruccion, timeout=TIMEOUTS.get(agente, 720))
         _state["last_outputs"][agente] = out
-        _state["done_steps"] = idx
+        _state["done_steps"] += 1
+        return etiqueta, tdesc, rc
+
+    # Fase secuencial: UX primero (dependencia real de frontend)
+    if route.get("ux"):
+        etiqueta, tdesc, rc = await _run_step("ux")
         if HALT.exists():
             monitor.cancel()
             _state.update(state="idle", done_steps=0, total_steps=0)
             await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}\n\nResponde REANUDAR para levantarlo.")
             return
-        if "NO-GO" in out and agente == "qa":
-            await _send(chat_id, f"❌ {_state['done_steps']}/{_state['total_steps']} — QA dio NO-GO")
-            break
-        await _send(chat_id, f"✅ {_state['done_steps']}/{_state['total_steps']} — {etiqueta.split(' ', 1)[0]} listo: {tdesc}")
+        await _send(chat_id, f"✅ {_state['done_steps']}/{_state['total_steps']} — UX listo: {tdesc}")
+
+    # Paralelismo (agent teams pattern): frontend y backend con ownership disjunto
+    if route.get("frontend") and route.get("backend"):
+        await _send(chat_id, "⚡ Frontend y Backend en paralelo (archivos disjuntos)…")
+        results = await asyncio.gather(
+            _run_step("frontend"),
+            _run_step("backend"),
+            return_exceptions=True,
+        )
+        for r in results:
+            if isinstance(r, Exception):
+                log.exception("Paso paralelo falló: %s", r)
+            else:
+                etiqueta, tdesc, rc = r
+                await _send(chat_id, f"✅ {_state['done_steps']}/{_state['total_steps']} — {etiqueta.split(' ', 1)[0]} listo: {tdesc}")
+        if HALT.exists():
+            monitor.cancel()
+            _state.update(state="idle", done_steps=0, total_steps=0)
+            await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}\n\nResponde REANUDAR para levantarlo.")
+            return
+    else:
+        for agente in ("frontend", "backend"):
+            if not route.get(agente):
+                continue
+            etiqueta, tdesc, rc = await _run_step(agente)
+            if HALT.exists():
+                monitor.cancel()
+                _state.update(state="idle", done_steps=0, total_steps=0)
+                await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}\n\nResponde REANUDAR para levantarlo.")
+                return
+            await _send(chat_id, f"✅ {_state['done_steps']}/{_state['total_steps']} — {etiqueta.split(' ', 1)[0]} listo: {tdesc}")
+
+    # QA SIEMPRE al final
+    etiqueta, tdesc, rc = await _run_step("qa")
+    salida_qa = _state["last_outputs"].get("qa", "")
+    if HALT.exists():
+        monitor.cancel()
+        _state.update(state="idle", done_steps=0, total_steps=0)
+        await _send(chat_id, f"🛨 HALT: {HALT.read_text()[:1200]}\n\nResponde REANUDAR para levantarlo.")
+        return
+    if "NO-GO" in salida_qa:
+        await _send(chat_id, f"❌ {_state['done_steps']}/{_state['total_steps']} — QA dio NO-GO")
+    else:
+        await _send(chat_id, f"✅ {_state['done_steps']}/{_state['total_steps']} — QA listo: {tdesc}")
 
     monitor.cancel()
 
@@ -301,12 +389,11 @@ async def _execute_pipeline(chat_id: int, context) -> None:
     veredicto_file = RR_DIR / ".rr" / "qa-veredicto.md"
     try:
         contenido_v = veredicto_file.read_text()
-        # última mención de GO/NO-GO en el archivo
         menciones = re.findall(r"NO-GO|GO ✅|GO\b", contenido_v)
         ultimo = menciones[-1] if menciones else ""
         qa_go = not ultimo.startswith("NO")
     except OSError:
-        qa_go = "NO-GO" not in out and rc == 0
+        qa_go = "NO-GO" not in salida_qa
 
     if qa_go:
         _state.update(state="done")
