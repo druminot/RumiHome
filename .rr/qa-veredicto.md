@@ -158,3 +158,47 @@ Deploy a staging para revisión visual del UX (gate doble), y luego promoción a
 ## Veredicto
 **GO** — escenario 3 cumple el pedido; puede deployarse a staging para revisión
 visual del UX y posterior promoción solo con "APROBAR" de Daniel.
+
+---
+
+# Modo oscuro admin (ramas `rr-t1-modo-oscuro`, commit `4f1449f`)
+
+**Fecha:** 2026-09-20
+**Feature:** plan.md tarea 1–3 — dark mode en el panel `/admin`
+**Validado:** commit `4f1449f rr(frontend): modo oscuro admin`
+
+## Resultado: GO ✅ (listo para deploy a staging)
+
+## Checklist por criterio del pedido de QA
+
+| # | Criterio | Estado | Evidencia |
+|---|---|---|---|
+| 1 | Build limpio app y server (docker node:22-alpine) | ✅ PASA | `npm run build` en app (tsc -b + vite, 2.42s) y `tsc` en server, ambos OK en contenedor |
+| 2 | Diff solo `app/` + `.rr/` | ✅ PASA | 10 archivos: 2 docs `.rr/` + 7 fuente `app/` + `index.html` + `tsconfig.tsbuildinfo` (artefacto) |
+| 3 | Huésped NO hereda oscuro: cero selectores dark sin `.admin-theme` | ✅ PASA | 50+ reglas oscuras 100% scoped en `:root[data-theme='dark'] .admin-theme`; guest no importa `useTheme`/`ThemeToggle`; guard anti-FOUC `/admin` |
+| 4 | `localStorage['rumihome.theme']` + `data-theme` según spec | ✅ PASA | Key exacta, default `light`, sin `prefers-color-scheme`, set en toggle, removeAttribute al desmontar; `data-theme` set en `<html>` solo en rutas admin |
+| 5 | Sin deps nuevas | ✅ PASA | `package.json`/`lock` de app y server sin cambios en el diff |
+| 6 | Veredicto en `.rr/qa-veredicto.md` | ✅ HECHO | esta adenda (+ detalle en `.rr/qa-notas.md`) |
+
+## Verificación funcional
+- **Staging** (`https://rumihome.io/rr/` → 200; `/rr/api/*` → 401 con middleware
+  auth activo): sirve aún el build ANTERIOR (esperado — el deploy ocurre solo con
+  GO). La revisión visual del UX (gate doble) queda pendiente post-deploy según
+  el checklist de `ux-modo-oscuro.md` §6.
+- **Local build**: dist incluye script anti-FOUC (guard `/admin` + `rumihome.theme`)
+  y el bundle referencia `data-theme` (set/remove) y la key `rumihome.theme`.
+
+## Hallazgos (no bloqueantes)
+1. `app/tsconfig.tsbuildinfo` commiteado y modificado por el build (artefacto;
+   mismo comportamiento que features previas). Sugerencia a futuro:
+   agregarlo a `.gitignore`.
+2. Warning de Vite en build: chunk firebase (dynamic import) — pre-existente.
+3. Plan.md declaraba base `b9d0d2e`; el padre real del commit es `c9009ec`
+   (descendiente directo, incluye agents opencode en `.opencode/`). No afecta.
+4. Overscroll del body en móvil con fondo claro en zona elástica — aceptado y
+   documentado en la spec UX (riesgo bajo).
+
+## Conclusión
+**GO** — el commit `4f1449f` cumple todos los criterios de QA. Procede el
+deploy a staging (puente), luego la revisión visual del rol ux; la promoción a
+PROD queda reservada a la aprobación explícita "APROBAR" de Daniel.

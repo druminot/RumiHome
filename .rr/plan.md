@@ -1,77 +1,80 @@
-# Plan: Escenario 3 — Sección de testimonios de huéspedes en la landing
+# Plan: Feature modo oscuro en el panel `/admin`
 
-## Orden de Daniel (escenario 3)
-Agregar una sección de **testimonios de huéspedes** a la landing del espejo
-(`landing/index.html`): **3 testimonios ficticios** con nombre, comuna y texto
-breve, ubicados **antes del footer**. Estilo coherente con la landing actual.
-**Solo landing** — nada de `app/` ni `server/`.
+## Orden de Daniel
+Agregar un **botón de modo oscuro** en el panel `/admin` de la SPA. Debe
+**alternar entre tema claro y oscuro**, **persistir la preferencia** y
+**aplicar en todas las páginas del panel** (login + las 3 pestañas del CRM:
+Reservas, Dashboard, Gastos & Redes).
 
 ## Estado base (verificado por PM)
 | Referencia | Commit | Nota |
 |---|---|---|
-| `origin/rr` | `f2eee78` | base del espejo sin la sección |
-| `rr-feature-3-testimonios` | `f2eee78` | branch del escenario 3, idéntico a `origin/rr` |
+| `origin/rr` | `b9d0d2e` | base del espejo sin la feature |
+| `rr-t1-modo-oscuro` | `b9d0d2e` | branch de esta tarea, idéntico a `origin/rr` |
 
-- La landing es **estática** (HTML + CSS inline); su "fuente de verdad" de diseño
-  son los tokens CSS del propio `landing/index.html` (`--accent: #FF385C`,
-  `--tile: #F7F7F7`, `--border: #DDDDDD`, secciones `max-width:1440px`,
-  grillas `repeat(3,1fr)`, títulos `h2` de 22px). No hay `landing/styles.css`.
-- Escenario 2 (rollback `expense-ranking`) queda **CERRADO**: el código en `rr` ya
-  era idéntico a `scenario-2-base`; se mantuvo el historial en
-  `rr-feature-2-ranking-gastos`.
+- El admin es una SPA React/Vite en `app/` (`app/src/main.tsx` con rutas
+  `VITE_ADMIN_PATH` → `AdminLogin`, `${VITE_ADMIN_PATH}/panel` →
+  `AdminDashboard` con tabs `ReservasTab`, `DashboardTab`, `GastosRedesTab`).
+- La "fuente de verdad" del diseño es `app/src/styles.css`: tokens `:root`
+  (líneas 1–18) + patrones visuales del admin (`.admin-shell`, `.admin-topbar`,
+  `.table-wrap`, `.stat-card`, `.calendar-section`, `.dashboard-section`, etc).
+- Supuestos aprobados por Daniel en la iteración previa (feature 1):
+  **por dispositivo** (sin sync a servidor), **default claro** (no se lee
+  `prefers-color-scheme`), toggle presente en login y en el panel.
 
 ## LÍNEA FRONTERA: qué se toca y qué NO
 
 ### SÍ se toca
 | Archivo | Cambio |
 |---|---|
-| `landing/index.html` | nueva sección `#testimonios` (CSS + markup) antes del footer |
-| `.rr/plan.md` | este plan (doc) |
-| `.rr/ux-testimonios.md` | spec UX pre-código (doc) |
-| `.rr/qa-veredicto.md` | adenda con el veredicto QA (doc) |
+| `app/src/hooks/useTheme.ts` | nuevo — hook de tema (leer/alternar/persistir) |
+| `app/src/components/ThemeToggle.tsx` | nuevo — botón sol/luna con `role="switch"` |
+| `app/src/styles.css` | tokens claros/oscuros, overrides scoped en `.admin-theme`, estilos del toggle |
+| `app/index.html` | script inline anti-FOUC que setea `data-theme` antes de pintar |
+| `app/src/pages/AdminLogin.tsx` | clase `admin-theme` + `<ThemeToggle>` |
+| `app/src/pages/AdminDashboard.tsx` | clase `admin-theme` + `<ThemeToggle>` en la topbar |
+| `app/src/pages/DashboardTab.tsx` | colores SVG hardcodeados → `var(--chart-*)`/`var(--sage)` |
+| `.rr/plan.md`, `.rr/ux-modo-oscuro.md`, `.rr/qa-veredicto.md` | docs del flujo |
 
 ### NO se toca (prohibido)
-- `app/`, `server/`, `agent/`, `scripts/`, `docker-compose.rr.yml`, nginx,
+- Portal huésped (`GuestLogin.tsx`, `GuestReservation.tsx`) y sus clases
+  (`.guest-shell`, `.reservation-card`, `.detail-grid`, `.price-summary`,
+  `.checkin-section`, `.door-access-*`, `.back-link`): el oscuro NUNCA aplica ahí.
+- `server/`, `agent/`, `landing/`, `scripts/`, `docker-compose.rr.yml`, nginx,
   `litestream.yml`, credenciales.
-- Navegación principal (`nav.global`) u otras secciones existentes de la landing:
-  el cambio es aditivo (solo se agrega la sección).
-- Rutas `/rr/*` existentes: se conservan intactas.
+- Rutas `/rr/*` existentes, API, DB.
 
 ## RUTEO
-Reglas aplicadas: solo UI estática (landing) → ux + frontend; QA siempre.
-
-- pm: APLICA — redacta este plan y audita el cumplimiento del alcance.
-- supervisor: APLICA — audita que se toque SOLO `landing/` y docs `.rr/`.
-- ux: APLICA — spec de la sección (`.rr/ux-testimonios.md`) ANTES de codificar,
-  desde los tokens de la landing; revisión visual en staging DESPUÉS del deploy.
-- frontend: APLICA — implementa `landing/index.html`.
-- qa: APLICA — diff acotado, invariantes de la landing (lightbox, anclas, rutas
-  `/rr/*`, mailto) y veredicto GO/NO-GO.
-- backend: NO APLICA — sin cambios en `server/`.
+Reglas aplicadas: solo UI (admin SPA) → ux + frontend; QA siempre.
+- **pm**: APLICA — redacta este plan, aplica las reglas de ruteo, no codea.
+- **supervisor**: APLICA — audita que se toque SOLO `app/` y docs `.rr/`.
+- **ux**: APLICA — spec (`ux-modo-oscuro.md`) ANTES de codificar desde
+  `styles.css`; revisión visual en staging DESPUÉS del deploy.
+- **frontend**: APLICA — implementa en `app/`; `npm run build` debe pasar.
+- **qa**: APLICA — build limpio, diff acotado, invariantes del huésped y
+  veredicto GO/NO-GO.
+- **backend**: NO APLICA — sin cambios en `server/`.
 
 ## TAREAS
-1. [ux] Spec de la sección testimonios (tokens, estructura, responsivo).
-   - Criterios: 3 tarjetas; cada una con nombre, comuna y texto breve; estrellas;
-   - grilla responsive 3 → 1 columna; estados: `#testimonios` única sección nueva.
-   - Estado: hecho (`.rr/ux-testimonios.md`)
-2. [frontend] Implementar `#testimonios` en `landing/index.html`
-   - Sección nueva ANTES del footer (después de `#reservar`), estética coherente.
-   - Sin cambios en nav, hero, amenities, galería, lightbox script, book-card,
-     footer, mailto ni rutas `/rr/*`.
-   - Estado: hecho (diff 100% aditivo)
+1. [ux] Spec de modo oscuro
+   - Criterios: toggle en login y topbar del panel; paleta WCAG AA; oscuro
+     aislado vía `.admin-theme` (el portal huésped jamás se oscurece);
+     persistencia `localStorage['rumihome.theme']`; default claro; anti-FOUC.
+   - Estado: hecho (`.rr/ux-modo-oscuro.md`)
+2. [frontend] Implementar
+   - `useTheme.ts` + `ThemeToggle.tsx`; `admin-theme` en login y dashboard;
+     gráficos de `DashboardTab` a tokens; overrides scoped en `styles.css`.
+   - Estado: hecho (commit `rr(frontend): modo oscuro admin`)
 3. [qa] Validación
-   - `git diff origin/rr --name-only` → solo `landing/index.html` + docs `.rr/`.
-   - Repasar invariantes de la landing (grep: `/rr/img/`, `/rr/app/reserva`,
-     `mailto`, lightbox, anclas).
-   - Veredicto GO/NO-GO en `.rr/qa-veredicto.md`.
-   - Estado: hecho (GO, adenda escenario 3)
+   - `npm run build` limpio; diff solo `app/` + docs `.rr/`; verificar que el
+     huésped no hereda el tema (sin `.admin-theme`, sin `data-theme`).
+   - Estado: [pendiente]
 4. [supervisor] Auditoría de alcance
-   - Criterios: fuerte — nada fuera de `landing/` y `.rr/`.
-   - Estado: pendiente (auditar diffs; crearía `.rr/HALT` solo si hay desvío)
-5. [pm] Cierre: registrar resultado y desviaciones (si hubiera) en historial.
-   - Estado: hecho — sin desviaciones nuevas; historial acumulado conservado.
+   - Criterios: fuerte — nada fuera de `app/` y `.rr/`.
+   - Estado: [pendiente]
+5. [pm] Cierre: registrar resultado en historial (abajo).
 
-## DESVIACIONES (historial acumulado)
+## DESVIACIONES (historial acumulado de RR)
 - Iteración 1: PM codeó directamente (violación de rol) → corregido: prohibición explícita en su prompt.
 - Iteración 1: plan.md no existía al iniciar frontend → corregido: regla "plan antes de asignar".
 - Iteración 1: permisos endurecidos (external_directory deny, /root y /etc/nginx bloqueados).
@@ -80,3 +83,4 @@ Reglas aplicadas: solo UI estática (landing) → ux + frontend; QA siempre.
 - Rollback escenario 2: el endpoint expense-ranking quedó fuera de `rr` por NO haberse mergeado;
   el código en `rr` ya era idéntico a `scenario-2-base`. Se mantiene como historial en
   `rr-feature-2-ranking-gastos`.
+- Escenario 3 testimonios: GO QA; queda como historial en `rr-feature-3-testimonios`.

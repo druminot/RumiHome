@@ -6,6 +6,7 @@ import type { Property } from '../types'
 import ReservasTab from './ReservasTab'
 import DashboardTab from './DashboardTab'
 import GastosRedesTab from './GastosRedesTab'
+import ThemeToggle from '../components/ThemeToggle'
 
 const ADMIN_PATH = import.meta.env.VITE_ADMIN_PATH ?? '/admin'
 
@@ -32,7 +33,7 @@ export default function AdminDashboardPage() {
   }, [navigate])
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell admin-theme">
       <header className="admin-topbar">
         <a className="logo" href="/">rumi<span>home</span> · CRM</a>
         <nav className="main-tabs" role="tablist">
@@ -40,7 +41,8 @@ export default function AdminDashboardPage() {
           <button role="tab" aria-selected={tab === 'dashboard'} className={`main-tab ${tab === 'dashboard' ? 'active' : ''}`} onClick={() => setTab('dashboard')}>Dashboard</button>
           <button role="tab" aria-selected={tab === 'gastos'} className={`main-tab ${tab === 'gastos' ? 'active' : ''}`} onClick={() => setTab('gastos')}>Gastos &amp; Redes</button>
         </nav>
-        <div>
+        <div className="admin-topbar-actions">
+          <ThemeToggle />
           <span className="whoami">Administrador</span>
           <button className="btn small ghost" onClick={logout}>Cerrar sesión</button>
         </div>
