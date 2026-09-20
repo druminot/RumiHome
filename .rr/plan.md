@@ -1,86 +1,56 @@
-# Plan: Feature modo oscuro en el panel `/admin`
+# Plan: Rollback modo oscuro escenario T1
 
 ## Orden de Daniel
-Agregar un **botón de modo oscuro** en el panel `/admin` de la SPA. Debe
-**alternar entre tema claro y oscuro**, **persistir la preferencia** y
-**aplicar en todas las páginas del panel** (login + las 3 pestañas del CRM:
-Reservas, Dashboard, Gastos & Redes).
+Revertir el modo oscuro: el branch `rr` debe quedar con código **idéntico al
+tag `t1-base`** (`b9d0d2e`). El branch `rr-t1-modo-oscuro` se conserva como
+historial (no se borra). Sin push, sin promote.
 
 ## Estado base (verificado por PM)
 | Referencia | Commit | Nota |
 |---|---|---|
-| `origin/rr` | `b9d0d2e` | base del espejo sin la feature |
-| `rr-t1-modo-oscuro` | `b9d0d2e` | branch de esta tarea, idéntico a `origin/rr` |
+| `t1-base` | `b9d0d2e` | destino del rollback (diseño claro previo, sin modo oscuro) |
+| `rr` = `origin/rr` | `1436fb5` | "T1 merge historial": merge del modo oscuro (padres: `b9d0d2e` + `b7884a7`) |
+| `rr-t1-modo-oscuro` | `b7884a7` | historial del modo oscuro — NO se toca |
 
-- El admin es una SPA React/Vite en `app/` (`app/src/main.tsx` con rutas
-  `VITE_ADMIN_PATH` → `AdminLogin`, `${VITE_ADMIN_PATH}/panel` →
-  `AdminDashboard` con tabs `ReservasTab`, `DashboardTab`, `GastosRedesTab`).
-- La "fuente de verdad" del diseño es `app/src/styles.css`: tokens `:root`
-  (líneas 1–18) + patrones visuales del admin (`.admin-shell`, `.admin-topbar`,
-  `.table-wrap`, `.stat-card`, `.calendar-section`, `.dashboard-section`, etc).
-- Supuestos aprobados por Daniel en la iteración previa (feature 1):
-  **por dispositivo** (sin sync a servidor), **default claro** (no se lee
-  `prefers-color-scheme`), toggle presente en login y en el panel.
-
-## LÍNEA FRONTERA: qué se toca y qué NO
-
-### SÍ se toca
-| Archivo | Cambio |
-|---|---|
-| `app/src/hooks/useTheme.ts` | nuevo — hook de tema (leer/alternar/persistir) |
-| `app/src/components/ThemeToggle.tsx` | nuevo — botón sol/luna con `role="switch"` |
-| `app/src/styles.css` | tokens claros/oscuros, overrides scoped en `.admin-theme`, estilos del toggle |
-| `app/index.html` | script inline anti-FOUC que setea `data-theme` antes de pintar |
-| `app/src/pages/AdminLogin.tsx` | clase `admin-theme` + `<ThemeToggle>` |
-| `app/src/pages/AdminDashboard.tsx` | clase `admin-theme` + `<ThemeToggle>` en la topbar |
-| `app/src/pages/DashboardTab.tsx` | colores SVG hardcodeados → `var(--chart-*)`/`var(--sage)` |
-| `.rr/plan.md`, `.rr/ux-modo-oscuro.md`, `.rr/qa-veredicto.md` | docs del flujo |
-
-### NO se toca (prohibido)
-- Portal huésped (`GuestLogin.tsx`, `GuestReservation.tsx`) y sus clases
-  (`.guest-shell`, `.reservation-card`, `.detail-grid`, `.price-summary`,
-  `.checkin-section`, `.door-access-*`, `.back-link`): el oscuro NUNCA aplica ahí.
-- `server/`, `agent/`, `landing/`, `scripts/`, `docker-compose.rr.yml`, nginx,
-  `litestream.yml`, credenciales.
-- Rutas `/rr/*` existentes, API, DB.
+- El diff `t1-base..rr` son 18 archivos: `app/` (ThemeToggle, useTheme,
+  styles.css, index.html, AdminLogin, AdminDashboard, DashboardTab,
+  tsconfig.tsbuildinfo) + `.opencode/agents/*.md` + docs `.rr/`.
+- `server/`, `landing/`, `agent/`, `scripts/`, `docker-compose.rr.yml` NO
+  están en el diff → intocados por la feature.
+- Método elegido: `git revert -m 1 1436fb5` sobre `rr` (merge revert con el
+  primer padre). El árbol resultante queda idéntico a `t1-base` y el historial
+  del merge se conserva (historia publicada en `origin/rr` no se reescribe;
+  `reset --hard` queda descartado por reescribir historia publicada).
 
 ## RUTEO
-Reglas aplicadas: solo UI (admin SPA) → ux + frontend; QA siempre.
-- **pm**: APLICA — redacta este plan, aplica las reglas de ruteo, no codea.
-- **supervisor**: APLICA — audita que se toque SOLO `app/` y docs `.rr/`.
-- **ux**: APLICA — spec (`ux-modo-oscuro.md`) ANTES de codificar desde
-  `styles.css`; revisión visual en staging DESPUÉS del deploy.
-- **frontend**: APLICA — implementa en `app/`; `npm run build` debe pasar.
-- **qa**: APLICA — build limpio, diff acotado, invariantes del huésped y
-  veredicto GO/NO-GO.
-- **backend**: NO APLICA — sin cambios en `server/`.
+Regla aplicada: rollback de UI ya implementada (sin diseño nuevo) → frontend
+ejecuta la reversión; QA siempre. El resultado del revert deshace TODO el
+diff, incluidos `.opencode/agents/` y docs `.rr/` (restauración literal del
+árbol a `t1-base`, no edición manual).
+- ux: NO APLICA — no hay spec nueva ni diseño; se restaura la identidad
+  visual previa de `t1-base` tal cual (`git revert` la devuelve sin intervención).
+- frontend: APLICA — ejecuta el revert del merge en `rr`; todo el código de
+  producto afectado es `app/` (modo oscuro del admin).
+- backend: NO APLICA — sin cambios en `server/` ni API.
+- qa: APLICA — verifica identidad del árbol con `t1-base` + build + veredicto.
 
 ## TAREAS
-1. [ux] Spec de modo oscuro
-   - Criterios: toggle en login y topbar del panel; paleta WCAG AA; oscuro
-     aislado vía `.admin-theme` (el portal huésped jamás se oscurece);
-     persistencia `localStorage['rumihome.theme']`; default claro; anti-FOUC.
-   - Estado: hecho (`.rr/ux-modo-oscuro.md`)
-2. [frontend] Implementar
-   - `useTheme.ts` + `ThemeToggle.tsx`; `admin-theme` en login y dashboard;
-     gráficos de `DashboardTab` a tokens; overrides scoped en `styles.css`.
-   - Estado: hecho (commit `rr(frontend): modo oscuro admin`)
-3. [qa] Validación
-   - `npm run build` limpio; diff solo `app/` + docs `.rr/`; verificar que el
-     huésped no hereda el tema (sin `.admin-theme`, sin `data-theme`).
-   - Estado: [pendiente]
-4. [supervisor] Auditoría de alcance
-   - Criterios: fuerte — nada fuera de `app/` y `.rr/`.
-   - Estado: [pendiente]
-5. [pm] Cierre: registrar resultado en historial (abajo).
+1. [frontend] Rollback modo oscuro en rr
+   - Criterios: en `git checkout rr` (árbol limpio antes); `git revert -m 1
+     1436fb5` con mensaje estilo repo (ej. "rr(frontend): rollback modo
+     oscuro (escenario T1)"); verificar `git diff t1-base rr` = **vacío**
+     (0 archivos); confirmar `git diff t1-base origin/rr` sigue mostrando el
+     diff del modo oscuro si NO se hizo push (o vacío si el pipeline pushea
+     el revert). NO tocar `server/`, `landing/`, `agent/`, `scripts/`,
+     `docker-compose.rr.yml`, `litestream.yml`. NO borrar ni alterar
+     `rr-t1-modo-oscuro`. NO push ni promote.
+   - Estado: hecha
+2. [qa] Verificacion rollback
+   - Criterios: `git diff t1-base rr` sin salida; `npm run build` en `app/`
+     pasa limpio; no existen `ThemeToggle.tsx` ni `useTheme.ts`; sin
+     `data-theme` ni anti-FOUC en `app/index.html`; portal huésped intacto;
+     veredicto GO/NO-GO escrito en `.rr/qa-veredicto.md`.
+   - Estado: pendiente
 
-## DESVIACIONES (historial acumulado de RR)
-- Iteración 1: PM codeó directamente (violación de rol) → corregido: prohibición explícita en su prompt.
-- Iteración 1: plan.md no existía al iniciar frontend → corregido: regla "plan antes de asignar".
-- Iteración 1: permisos endurecidos (external_directory deny, /root y /etc/nginx bloqueados).
-- Iteración 2: compromiso de NO codear (plan escrito ANTES de asignar a ux/frontend/qa).
-- Iteración 3: Daniel revierte la estética 90s completa (landing + SPA). La infra `/rr/` es orden explícita de NO revertir.
-- Rollback escenario 2: el endpoint expense-ranking quedó fuera de `rr` por NO haberse mergeado;
-  el código en `rr` ya era idéntico a `scenario-2-base`. Se mantiene como historial en
-  `rr-feature-2-ranking-gastos`.
-- Escenario 3 testimonios: GO QA; queda como historial en `rr-feature-3-testimonios`.
+## DESVIACIONES
+(ninguna)
