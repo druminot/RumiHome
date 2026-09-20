@@ -308,7 +308,7 @@ def build_graph():
     g = StateGraph(FlowState)
     g.add_node("pm_plan", n_pm_plan)
     g.add_node("esperar_aprobar", n_esperar_aprobar)
-    g.add_node("aprobar", lambda s: s)  # placeholder de ruta post-APROBAR
+    g.add_node("aprobar", n_aprobar)  # determinista: crea branch rr-feature-*
     g.add_node("pm_cambios", n_pm_cambios)
     g.add_node("ux", _paso("ux"))
     g.add_node("frontend", _paso("frontend"))
