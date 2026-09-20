@@ -202,3 +202,36 @@ visual del UX y posterior promoción solo con "APROBAR" de Daniel.
 **GO** — el commit `4f1449f` cumple todos los criterios de QA. Procede el
 deploy a staging (puente), luego la revisión visual del rol ux; la promoción a
 PROD queda reservada a la aprobación explícita "APROBAR" de Daniel.
+
+---
+
+# Adenda — Endpoint GET /api/analytics/expense-ranking (commit `e10b028`, rama `rr-t2-ranking`)
+
+**Fecha:** 2026-09-20
+**Feature:** plan.md tarea 1 — ranking de gastos por categoría (solo API, nada de UI)
+**Validado:** commit `e10b028 rr(backend): endpoint expense-ranking`
+
+## Resultado: GO ✅ (listo para deploy a staging)
+
+## Checklist por criterio del pedido de QA
+
+| # | Criterio | Estado | Evidencia |
+|---|---|---|---|
+| 1 | Build `server/` limpio (docker node:22-alpine) | ✅ PASA | `rm -rf dist && npm run build` (`tsc`) EXIT=0; `dist/routes/finance.js` contiene `expense-ranking` |
+| 2 | Diff solo `server/` + `.rr/` | ✅ PASA | 4 archivos: `server/src/db/finance.ts`, `server/src/routes/finance.ts` + docs `.rr/plan.md`, `.rr/qa-notas.md`. Cero en `app/`, `landing/`, `index.ts`, auth, deps |
+| 3 | Ruta bajo `requireAdmin` en `index.ts` | ✅ PASA | Mount pre-existente `app.use('/api', requireAdmin, ...)` (index.ts:26); curl sin token → 401 `{"error":"No autenticado"}` |
+| 4 | Lógica: orden DESC, porcentaje, month regex | ✅ PASA | `ORDER BY total DESC` en SQL; `percentage = Math.round(total/total_expenses*1000)/10` (1 decimal, base = suma del mes); regex `/^\d{4}-\d{2}$/` + rango 01–12 → 400 `Mes inválido`; `property_id` default 1 validado `integer>0` → 400 `Propiedad inválida` |
+| 5 | Veredicto en `.rr/qa-veredicto.md` | ✅ HECHO | esta adenda (+ detalle en `.rr/qa-notas.md`) |
+
+## Verificación funcional (independiente)
+- **DB copy** (`.rr/qa-copy.db` vía `VACUUM INTO` por WAL) replicando la lógica: **13/13 PASS** — DESC 30000>20000>5000, total 55000, % 54.5/36.4/9.1 = 100.0; frontera mes correcta (2026-09-01 excluido de 08, incluido en 09); mes vacío → `total_expenses:0, ranking:[]`; `to` correcto en cruce de año (2026-12 → 2027-01-01); default con fecha 2026-09-20 → `2026-08`.
+- **HTTP** (server efímero con `financeRouter` compilado dentro de `rumihome-api-rr`, puerto 3899): sin params → mes 2026-08, ranking DESC, % suman 100.0; `?month=2026-08` y `?property_id=1` consistentes; `?month=invalido`/`2026-13`/`2026-00` → 400; `property_id=abc`/`0`/`1.5` → 400; shape `{month, property_id, total_expenses, ranking:[{category,total,percentage}]}` con solo categorías > 0 ✔.
+- Proceso efímero terminado; sin archivos residuales (script de verificación eliminado, árbol limpio).
+
+## Hallazgos (no bloqueantes)
+1. **DB staging en modo WAL**: un `cp data/rumihome.db` a `.rr/qa-copy.db` pierde los datos del `-wal`. Para snapshots consistentes usar `VACUUM INTO` (o `sqlite3 .backup`). No afecta al código.
+2. **Datos QA en staging**: gastos ids 2–4 (30000/20000/5000 @ 2026-08, descripción "QA prueba expense-ranking") siguen en la DB de staging y se verán en `/rr/api/analytics/expense-ranking`. Recomendado limpiarlos (`DELETE /api/expenses/{id}`) o resetear desde `staging-seed.db` tras la validación, antes de la demo a Daniel.
+3. Observación de robustez (compartida con `getFinanceSummary`, pre-existente): `to` se calcula con `Date.parse(from) + 32 días` en vez de aritmética de fechas explícita; verificado correcto (incl. cruce de año). No requiere cambio.
+
+## Conclusión
+**GO** — el commit `e10b028` cumple los 5 criterios del pedido de QA y los criterios de la tarea 1 del plan. Procede el deploy a staging (puente); la promoción a PROD queda reservada a la aprobación explícita "APROBAR" de Daniel.

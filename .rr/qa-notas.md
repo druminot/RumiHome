@@ -93,3 +93,61 @@ Todos los criterios del pedido de QA pasan → **GO** (ver `.rr/qa-veredicto.md`
 
 ## 5. Auth real del staging
 - `GET http://127.0.0.1:3001/api/analytics/expense-ranking?month=2026-08` (api-rr real, sin token) → **401 `{"error":"No autenticado"}`** → ruta montada bajo `requireAdmin` ✔.
+
+---
+
+# QA Notas — Re-validación endpoint expense-ranking (commit `e10b028`, rama `rr-t2-ranking`)
+
+**Fecha:** 2026-09-20
+**Rol:** QA (auditoría final, independiente de la del backend)
+**Commit validado:** `e10b028 rr(backend): endpoint expense-ranking`
+
+## 1. Estado inicial
+- Branch `rr-t2-ranking` en `e10b028` (HEAD). Working tree limpio. Sin `.rr/HALT`.
+- Containers staging arriba: `rumihome-api-rr` (172.16.1.2:3001, bind `./data -> /data`), `rumihome-app-rr`.
+
+## 2. Build limpio (docker node:22-alpine)
+- `docker run --rm -v /opt/rumihome-rr/server:/build -w /build node:22-alpine sh -c "rm -rf dist && npm run build"` → `tsc` **EXIT=0**, sin errores.
+- `server/dist/routes/finance.js` contiene `expense-ranking` (grep ×2) y `server/dist/index.js` monta `app.use('/api', requireAdmin, ...)` (línea 20 del dist).
+- Dist regenerado es artefacto gitignoreado; árbol quedó limpio.
+
+## 3. Alcance del diff (`git diff --name-only rr...rr-t2-ranking`)
+Solo `server/` + `.rr/`:
+- `server/src/db/finance.ts` (tipos `ExpenseRankingEntry`/`ExpenseRanking` + `getExpenseRanking`)
+- `server/src/routes/finance.ts` (ruta `GET /analytics/expense-ranking`)
+- `.rr/plan.md`, `.rr/qa-notas.md` (docs)
+- **Cero** cambios en `app/`, `landing/`, `server/src/index.ts` (el mount con `requireAdmin` es **pre-existente**), otros routers, auth, package.json, compose, DB.
+- Sin `console.log`/`TODO`/`FIXME`/tokens/secretos en el diff del código.
+
+## 4. Ruta bajo requireAdmin
+- `server/src/index.ts:26` → `app.use('/api', requireAdmin, adminRouter, financeRouter, smarthomeRouter)` (ya existía; la ruta nueva hereda el middleware).
+- Verificación real: `curl http://172.16.1.2:3001/api/analytics/expense-ranking?month=2026-08` sin token → **401 `{"error":"No autenticado"}`**.
+
+## 5. Revisión de lógica
+- `getExpenseRanking(month, propertyId?)`: `from = ${month}-01`, `to` = primer día del mes siguiente (mismo patrón `+32 días` que `getFinanceSummary`), query `GROUP BY category ORDER BY total DESC`, filtro `r.total > 0`, `total_expenses` = suma de totales, `percentage = Math.round((total/total_expenses)*1000)/10`.
+- Ruta: month por defecto = mes calendario anterior (UTC); regex `/^\d{4}-\d{2}$/` + rango 01–12 → 400 `{error:'Mes inválido'}` (evita 500 con `2026-13`/`2026-00`); `property_id` default 1 validado `integer > 0` → 400 `{error:'Propiedad inválida'}`.
+
+## 6. Validación contra copia de DB (`.rr/qa-copy.db`)
+- ⚠️ Nota metodológica: `data/rumihome.db` está en **modo WAL**; `cp` directo del archivo principal pierde lo que está en el `-wal` (el copy inicial quedó SIN los gastos sembrados 2026-08). Snapshot consistente vía `VACUUM INTO` desde `node --experimental-sqlite` (read-only sobre `data/rumihome.db` → `.rr/qa-copy.db`). Se reproduce la lógica del endpoint y da **13/13 PASS**:
+  - 2026-08 → `servicios 30000 > mantencion 20000 > insumos 5000` (DESC), total 55000, % 54.5 / 36.4 / 9.1, suma = 100.0 exacto.
+  - Frontera correcta: expense 2026-09-01 (28500) EXCLUIDO de 2026-08 e INCLUIDO en 2026-09 (100%).
+  - Mes sin gastos (2026-07) → `{"month":"2026-07","total_expenses":0,"ranking":[]}`.
+  - `property_id=2` (sin gastos) → rankings vacíos.
+  - `to` calculado = primer día del mes siguiente, incluso cruce de año (2026-12 → 2027-01-01).
+  - `defaultMonth` con fecha sistema 2026-09-20 → 2026-08 ✔.
+
+## 7. Prueba funcional HTTP (server efímero con `financeRouter` compilado dentro de `rumihome-api-rr`, puerto 3899)
+| Caso | HTTP | Respuesta |
+|---|---|---|
+| sin params (default) | 200 | `{"month":"2026-08","property_id":1,"total_expenses":55000,"ranking":[servicios 30000 54.5, mantencion 20000 36.4, insumos 5000 9.1]}` |
+| `?month=2026-08` | 200 | idéntico (consistente) |
+| `?month=2026-08&property_id=1` | 200 | idéntico |
+| `?month=2026-07` (sin gastos) | 200 | `total_expenses:0, ranking:[]` |
+| `?month=invalido` | 400 | `{"error":"Mes inválido"}` |
+| `?month=2026-13` / `2026-00` | 400 | `{"error":"Mes inválido"}` |
+| `?month=2026-08&property_id=abc` / `0` / `1.5` | 400 | `{"error":"Propiedad inválida"}` |
+
+- Proceso efímero terminado (kill) después de la prueba; sin restos.
+
+## Resultado
+Todos los criterios del pedido QA pasan → **GO** (ver `.rr/qa-veredicto.md`).
