@@ -102,16 +102,24 @@ RumiHome tiene un segundo entorno tipo profesional para desarrollar features con
   - `location /rr/app/` → app-rr (SPA; Vite base `VITE_BASE_PATH=/rr/app/`, rutas `VITE_ADMIN_PATH=/rr/app/admin`, `VITE_GUEST_PATH=/rr/app/reserva`)
   - `location /rr/api/` → api-rr
 - Config opencode: `/root/.config/opencode-rr/` (opencode.json con provider glm-5.3-flash Ollama Cloud, `agent/*.md` con los prompts, `permissions.json` con bash allowlist que DENIEGA todo lo no listado; `external_directory: deny`, bloqueo `/root` y `/etc/nginx`). Allowlist incluye verificación determinista: `docker run --rm`, `docker compose *`, `cmp`, `sha256sum`, `wc`, `rm -rf /tmp/*`.
-- Bot puente: servicio systemd `rumihome-dev-bot` (`agent-dev/`, venv en `/opt/rumihome-rr/agent-dev/.venv`), env `/root/dev-agent.env` (TELEGRAM_BOT_TOKEN_DEV, TELEGRAM_CHAT_ID_DEV, OLLAMA_API_KEY compartida).
+- Bot puente: servicio systemd `rumihome-dev-bot` (`agent-dev/`, venv en `/opt/rumihome-rr/agent-dev/.venv`), env `/root/dev-agent.env` (TELEGRAM_BOT_TOKEN_DEV, TELEGRAM_CHAT_ID_DEV, OLLAMA_API_KEY compartida). **FASE 2**: el puente es un **StateGraph LangGraph** (OSS, 100% en VPS):
+  - `graph_flow.py` — grafo: `pm_plan → esperar_aprobar(interrupt APROBAR/CAMBIOS/CANCELAR) → ux? → Send(FE∥BE) → qa → deploy`; NO-GO itera vía `pm_cambios` (máx 3) → escalar.
+  - `graph_flow_core.py` — cliente opencode server (sesiones por rol, reset por feature), parsers del plan, trazas locales, outbox thread-safe.
+  - `main.py` — capa Telegram: invoca el grafo con `thread_id` por feature y drena la outbox a mensajes.
+  - **SqliteSaver** (`agent-dev/flujo.db`): checkpoint tras cada paso → el flujo sobrevive reinicios del bot/VPS; retención (cron diario `/usr/local/bin/flujo-db-maint.sh`, purga >50MB conserva 10 threads).
+  - **Protocolo de fallos del PM v2** dentro de cada paso: rc≠0 → PM diagnostica con ground truth → REINTENTO (instrucción corregida) → ESCALAR a Daniel. Jamás codea el PM.
+  - **Trazas locales** `.rr/trace-<feature>.log` con rotación (máx 10) — sin LangSmith (nada fuera del VPS).
+  - Salvaguardas recursos: cron semanal `docker builder prune --keep-storage 2GB` (`/etc/cron.d/rumihome-buildcache`) + retención flujo.db.
 
 ### Velocidad del pipeline (técnicas de la industria)
 
 - **`opencode serve` persistente** (systemd `opencode-serve`, puerto 127.0.0.1:4096, password en unit): el bot invoca los agentes vía HTTP (`POST /session/:id/message`) con **sesión reutilizable por rol** → cero cold boot por paso (antes ~2-4 min × cada agente). Fallback automático a `opencode run` local si el server no responde.
-- **Timeouts duros por rol** (seg): pm 480 · ux 720 · frontend 720 · backend 720 · qa 600 · supervisor 600. Un agente colgado NUNCA bloquea el flujo.
-- **Paralelismo FE∥BE**: frontend y backend corren con `asyncio.gather` cuando el ruteo pide ambos (ownership disjunto de archivos); QA siempre al final.
+- **Timeouts duros por rol** (seg): pm 480 · ux 720 · frontend 720 · backend 720 · qa 600. Un agente colgado NUNCA bloquea el flujo.
+- **Paralelismo FE∥BE**: `Send` de LangGraph lanza frontend y backend en la misma superstep cuando el RUTEO pide ambos (ownership disjunto de archivos); QA siempre al final.
 - **Prompts de arranque directo**: cada invocación referencia `.rr/plan.md` + spec y prohíbe re-analizar el problema o releer archivos que no tocará.
 - **QA sin trampas**: qa.md prohíbe explorar `/root`/`~/.nvm` (bloqueado por diseño) y reintentar comandos rechazados; node solo vía containers (`node:22-alpine`).
-- Medición base (feature modo oscuro, sep 2026): PM 470s · UX 405s · FE 287s (∥ con BE) · QA ~18min por atascos de permisos ya corregidos → objetivo < 15 min end-to-end.
+- **PM v2** (pm.md): clasificación SIMPLE/MEDIA/COMPLEJA con escalamiento de esfuerzo, delegación con 4 campos (objetivo/entregable/límites/éxito), sección SUPUESTOS en plan.md, protocolo de fallos, monitoreo con ground truth, anti-anchoring en bugs.
+- **Medición T3** (testimonios, sep 2026, grafo v2): **PM 126s** · total **1521s (~25min)** end-to-end — 2× más rápido que la medición pre-LangGraph (~49min), con progreso visible en Telegram y rollback limpio.
 
 ## Backlog / Tareas futuras
 
