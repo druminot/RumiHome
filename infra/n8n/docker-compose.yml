@@ -1,0 +1,33 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: rumihome-n8n
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      - N8N_HOST=n8n.rumihome.io
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://n8n.rumihome.io/
+      - N8N_EDITOR_BASE_URL=https://n8n.rumihome.io/
+      - GENERIC_TIMEZONE=America/Santiago
+      - TZ=America/Santiago
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_PAYLOAD_SIZE_MAX=16
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=20000
+      - N8N_LOG_LEVEL=warn
+    volumes:
+      - /opt/n8n:/home/node/.n8n
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:5678/healthz | grep -q ok || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
