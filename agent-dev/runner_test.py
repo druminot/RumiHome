@@ -41,7 +41,7 @@ def drain_print() -> None:
 
 async def main() -> None:
     bind_loop(asyncio.get_running_loop())
-    graph = build_graph()
+    graph = await build_graph()
     drainer = asyncio.to_thread(drain_print)
     state_in = {
         "thread_id": THREAD,
@@ -59,21 +59,20 @@ async def main() -> None:
         "plan_texto": "",
     }
     config = {"configurable": {"thread_id": THREAD}}
-    loop = asyncio.get_running_loop()
     print(f"{t()} ▶ invocando grafo (pm_plan)…", flush=True)
-    final = await loop.run_in_executor(None, graph.invoke, state_in, config)
-    print(f"\n{t()} ── grafo pausado en awaiting_approval; estado: veredicto={final.get('veredicto')!r}", flush=True)
+    final = await graph.ainvoke(state_in, config, version="v2")
+    final_v = final.value if hasattr(final, "value") else final
+    print(f"\n{t()} ── grafo pausado en awaiting_approval; estado: veredicto={final_v.get('veredicto')!r}", flush=True)
 
     # APROBAR automático (test de regresión)
     from langgraph.types import Command
 
     print(f"{t()} ▶ reanudando con: {AUTO_APPROBAR}", flush=True)
-    final = await loop.run_in_executor(
-        None, graph.invoke, Command(resume=AUTO_APPROBAR), config
-    )
-    print(f"\n{t()} ── FIN del grafo. veredicto final: {final.get('veredicto')!r}", flush=True)
-    print(f"{t()} hechos: {final.get('hechos')}", flush=True)
-    print(f"{t()} fallos: {final.get('fallos') or '(ninguno)'}", flush=True)
+    final = await graph.ainvoke(Command(resume=AUTO_APPROBAR), config, version="v2")
+    final_v = final.value if hasattr(final, "value") else final
+    print(f"\n{t()} ── FIN del grafo. veredicto final: {final_v.get('veredicto')!r}", flush=True)
+    print(f"{t()} hechos: {final_v.get('hechos')}", flush=True)
+    print(f"{t()} fallos: {final_v.get('fallos') or '(ninguno)'}", flush=True)
 
 
 AUTO_APPROBAR = "APROBAR"

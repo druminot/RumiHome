@@ -2,7 +2,11 @@
 
 Infraestructura compartida por graph_flow.py (grafo) y main.py (Telegram).
 Todo corre en el VPS: sin LangSmith ni ningún servicio en la nube.
+
+LangGraph 1.2: timeouts declarativos (TimeoutPolicy), RetryPolicy, error_handler
+y graceful shutdown (RunControl) — los nodos de paso son async.
 """
+import asyncio
 import logging
 import os
 import queue  # thread-safe: los nodos del grafo corren en un executor thread
@@ -24,10 +28,11 @@ HALT = RR_DIR / ".rr" / "HALT"
 TRACE_DIR = RR_DIR / ".rr"
 MAX_TRACES = 10
 
-# Timeouts duros por rol (segundos) — un agente colgado NUNCA bloquea el flujo
+# Timeouts duros por rol (segundos) — ÚNICA fuente de verdad; también alimenta
+# TimeoutPolicy(run_timeout=...) en add_node (graph_flow.py).
 TIMEOUTS = {"pm": 480, "ux": 720, "frontend": 720, "backend": 720, "qa": 600}
 
-# Outbox thread-safe: los nodos (executor thread) encolan; el drainer asyncio drena
+# Outbox thread-safe: los nodos (executor thread o async) encolan; el drainer drena
 _outbox: "queue.Queue[tuple[int, str]]" = queue.Queue()
 _loop: asyncio.AbstractEventLoop | None = None  # type: ignore[name-defined]
 _loop_lock = threading.Lock()
@@ -101,11 +106,52 @@ def _reset_sessions() -> None:
         pass  # el server las recicla solo
 
 
-def _agent(agent: str, instruction: str, timeout: int | None = None) -> tuple[int, str]:
-    """Invoca el agente vía opencode server persistente (sesión por rol).
+async def _agent_async(agent: str, instruction: str, timeout: int | None = None) -> tuple[int, str]:
+    """Invoca el agente vía opencode server persistente (sesión por rol) — async nativo.
 
-    Cero cold boot por paso. Fallback a opencode run local si el server no responde.
+    Cero cold boot por paso. Fallback a opencode run local (en thread) si el server no responde.
+    Cancelable por asyncio → TimeoutPolicy de LangGraph puede abortar el intento.
     """
+    if timeout is None:
+        timeout = TIMEOUTS.get(agent, 720)
+    instruccion = (
+        f"{instruction}\n\n(ARRANQUE DIRECTO: el contexto completo está en .rr/plan.md y specs de .rr/. "
+        "NO re-analices el problema ni releas archivos que no vas a tocar. Ve directo a tu tarea.)"
+    )
+    base = "http://127.0.0.1:4096"
+    auth = ("opencode", "rr-serve-6cc594626b2b")
+    try:
+        async with httpx.AsyncClient(timeout=timeout, auth=auth) as client:
+            # Lock de sesiones: crítico corto (1 POST), seguro tomarlo sync desde async
+            with _sessions_lock:
+                if agent not in _sessions:
+                    res = await client.post(f"{base}/session", json={"title": f"dev-bot-{agent}"})
+                    res.raise_for_status()
+                    _sessions[agent] = res.json()["id"]
+                sid = _sessions[agent]
+            res = await client.post(
+                f"{base}/session/{sid}/message",
+                json={"agent": agent, "parts": [{"type": "text", "text": instruccion}]},
+            )
+            if res.status_code == 409 or res.status_code >= 500:
+                await client.post(f"{base}/session/{sid}/abort")
+                res = await client.post(
+                    f"{base}/session/{sid}/message",
+                    json={"agent": agent, "parts": [{"type": "text", "text": instruccion}]},
+                )
+            res.raise_for_status()
+            partes = res.json().get("parts", [])
+            textos = [p.get("text", "") for p in partes if p.get("type") == "text"]
+            return 0, ("\n".join(textos) or "(sin salida)")[-3500:]
+    except Exception as e:
+        log.warning("Server opencode falló (%s) — fallback a opencode run local", e)
+        return await asyncio.to_thread(
+            _run, ["opencode", "run", "--agent", agent, instruccion], timeout, True
+        )
+
+
+def _agent(agent: str, instruction: str, timeout: int | None = None) -> tuple[int, str]:
+    """Versión sync de _agent (para nodos sync como pm_plan/pm_cambios)."""
     if timeout is None:
         timeout = TIMEOUTS.get(agent, 720)
     instruccion = (

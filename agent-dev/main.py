@@ -80,6 +80,9 @@ def drain_one_blocking(timeout: float) -> tuple[int, str] | None:
 async def _post_startup(app: ContextTypes.DEFAULT_TYPE) -> None:
     global _drainer_task
     bind_loop(asyncio.get_running_loop())
+    # build_graph async (AsyncSqliteSaver necesita loop corriendo)
+    if "graph" not in app.bot_data:
+        app.bot_data["graph"] = await build_graph()
     _drainer_stop.clear()
     _drainer_task = asyncio.create_task(_outbox_drainer(app))
 
@@ -202,10 +205,16 @@ async def _start_feature(chat_id: int, feature: str) -> None:
     }
 
     async def runner() -> None:
+        global _run_control
         try:
-            loop = asyncio.get_running_loop()
-            final = await loop.run_in_executor(None, graph.invoke, state_in, config)
-            veredicto = final.get("veredicto", "")
+            from langgraph.runtime import RunControl
+
+            control = RunControl()
+            _run_control = control
+            # ainvoke (LangGraph 1.2): nodos async en el event loop → TimeoutPolicy
+            # cancelable, GraphOutput con .interrupts separado y graceful shutdown.
+            final = await graph.ainvoke(state_in, config, version="v2", control=control)
+            veredicto = final.value.get("veredicto", "") if hasattr(final, "value") else final.get("veredicto", "")
             if veredicto == "FALLO":
                 _ui.update(state="awaiting_approval")  # CAMBIOS para reintentar distinto
             elif veredicto == "CANCELADO":
@@ -215,6 +224,8 @@ async def _start_feature(chat_id: int, feature: str) -> None:
         except Exception:
             log.exception("Grafo falló de forma catastrófica")
             _ui.update(state="idle", feature=None, thread_id=None)
+        finally:
+            _run_control = None
 
     _ui["runner"] = asyncio.create_task(runner())
 
@@ -229,10 +240,14 @@ async def _resume(chat_id: int, decision: str) -> None:
     _ui["state"] = "executing" if decision in ("APROBAR",) else "planning"
 
     async def runner() -> None:
+        global _run_control
         try:
-            loop = asyncio.get_running_loop()
-            final = await loop.run_in_executor(None, graph.invoke, Command(resume=decision), config)
-            veredicto = final.get("veredicto", "")
+            from langgraph.runtime import RunControl
+
+            control = RunControl()
+            _run_control = control
+            final = await graph.ainvoke(Command(resume=decision), config, version="v2", control=control)
+            veredicto = final.value.get("veredicto", "") if hasattr(final, "value") else final.get("veredicto", "")
             if veredicto in ("FALLO", "CANCELADO"):
                 _ui.update(state="idle", feature=None, thread_id=None)
             else:
@@ -240,6 +255,8 @@ async def _resume(chat_id: int, decision: str) -> None:
         except Exception:
             log.exception("Grafo (resume) falló")
             _ui.update(state="idle", feature=None, thread_id=None)
+        finally:
+            _run_control = None
 
     _ui["runner"] = asyncio.create_task(runner())
 
@@ -251,13 +268,32 @@ def _new_thread_id(feature: str) -> str:
 
 _app: Application | None = None
 
+# Graceful shutdown (LangGraph 1.2): SIGTERM de systemd → request_drain() → el grafo
+# termina el superstep en curso y deja checkpoint resumible. En el próximo arranque,
+# la feature se reanuda con invoke(None, config).
+_run_control = None  # langgraph.runtime.RunControl (lazy)
+
+
+def _sigterm_handler(signum, frame) -> None:
+    """systemd stop/restart: drena el grafo en curso (checkpoint limpio) en vez de matarlo."""
+    global _run_control
+    if _run_control is not None:
+        log.info("SIGTERM: solicitando drain del grafo en curso…")
+        try:
+            _run_control.request_drain("sigterm")
+        except Exception:
+            log.warning("request_drain falló", exc_info=True)
+    else:
+        log.info("SIGTERM sin grafo en curso — salida directa")
+
 
 def main() -> None:
     global _app
-    graph = build_graph()
+    import signal
+
     app = Application.builder().token(BOT_TOKEN).build()
     _app = app
-    app.bot_data["graph"] = graph
+    signal.signal(signal.SIGTERM, _sigterm_handler)
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("estado", cmd_estado))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

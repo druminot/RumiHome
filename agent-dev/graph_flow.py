@@ -5,20 +5,32 @@ pm_plan → esperar_aprobar(interrupt) → [ux? → Send(FE∥BE)] → qa → de
   · fallo de paso → protocolo PM v2 (REINTENTO/ESCALAR) → fallo(END)
   · SqliteSaver: checkpoint tras cada super-step (sobrevive reinicios)
   · Trazas locales .rr/trace-<feature>.log con rotación (sin LangSmith)
+
+LangGraph 1.2 adoptado:
+  · Nodos de paso async + TimeoutPolicy(run_timeout=) declarativo (set_node_defaults)
+  · RetryPolicy para fallos transitorios de red (antes de despertar al PM)
+  · error_handler= → NodeError tipado → Command(goto="fallo") con contexto
+  · Streaming v2: GraphOutput con .value/.interrupts (sin hack __interrupt__)
 """
+import logging
 import operator
 import re
-import sqlite3
 from pathlib import Path
 from typing import Annotated, TypedDict
 
-from langgraph.checkpoint.sqlite import SqliteSaver
+import aiosqlite
+import httpx
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.errors import NodeError
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command, RetryPolicy, TimeoutPolicy
 
 from graph_flow_core import (
     HALT,
     RR_DIR,
+    TIMEOUTS,
     _agent,
+    _agent_async,
     _emit,
     _git_summary,
     _parse_tasks,
@@ -31,8 +43,7 @@ from graph_flow_core import (
 
 FLOW_DB = Path(__file__).resolve().parent / "flujo.db"
 
-# Timeouts duros por rol (segundos) — un agente colgado NUNCA bloquea el flujo
-TIMEOUTS = {"pm": 480, "ux": 720, "frontend": 720, "backend": 720, "qa": 600}
+log = logging.getLogger("rumihome-dev.flow")
 
 
 class FlowState(TypedDict):
@@ -143,10 +154,14 @@ def n_pm_cambios(state: dict) -> dict:
 
 
 def _paso(agente: str):
-    """Nodo agéntico: invoca opencode con el protocolo de fallos del PM v2."""
+    """Nodo agéntico async: invoca opencode con el protocolo de fallos del PM v2.
+
+    LangGraph 1.2: TimeoutPolicy corta intentos colgados; RetryPolicy reintenta
+    fallos transitorios de red; el protocolo PM v2 queda para fallos SEMÁNTICOS.
+    """
     etiqueta = {"ux": "🎨 UX", "frontend": "⚙️ Frontend", "backend": "🗄 Backend", "qa": "🔍 QA"}[agente]
 
-    def node(state: dict) -> dict:
+    async def node(state: dict) -> dict:
         chat_id, feature, tasks = state["chat_id"], state["feature"], state["tasks"]
         instruccion_base = {
             "ux": f"Feature: {feature}. Ejecuta las tareas de ux según .rr/plan.md y la spec. NO salgas de tu rol.",
@@ -157,18 +172,18 @@ def _paso(agente: str):
         tdesc = next((d for n, a, d in tasks if a == agente), agente)
         paso_num = len(state.get("hechos", [])) + 1
 
-        def intento(instruccion: str) -> tuple[int, str]:
+        async def intento(instruccion: str) -> tuple[int, str]:
             _emit(chat_id, f"▶️ {paso_num}/{state['total_steps']} — {etiqueta} trabajando: {tdesc}…")
-            rc, out = _agent(agente, instruccion, timeout=TIMEOUTS.get(agente, 720))
+            rc, out = await _agent_async(agente, instruccion, timeout=TIMEOUTS.get(agente, 720))
             _trace(feature, agente, out)
             return rc, out
 
-        rc, out = intento(instruccion_base)
+        rc, out = await intento(instruccion_base)
         if rc != 0:
             fallo = f"agente {agente} salió rc={rc}" + (" (timeout)" if rc == 124 else "")
             log.warning("Paso %s falló: %s", agente, fallo)
             _emit(chat_id, f"⚠️ {etiqueta.split(' ', 1)[0]} falló ({fallo}) — consultando al PM…")
-            diag_rc, diag_out = _agent(
+            diag_rc, diag_out = await _agent_async(
                 "pm",
                 f"FALLO DE AGENTE en la feature en curso. Agente: {agente}. Detalle: {fallo}.\n"
                 f"ÚLTIMAS LÍNEAS DE SU OUTPUT:\n{out[-1500:]}\n\n"
@@ -184,7 +199,7 @@ def _paso(agente: str):
             extra = (m.group(2) or "").strip()
             if decision == "REINTENTO":
                 _emit(chat_id, f"🔁 PM ordena reintento de {etiqueta.split(' ', 1)[0]} con instrucción corregida…")
-                rc, out = intento(
+                rc, out = await intento(
                     f"{instruccion_base}\n\nINSTRUCCIÓN CORREGIDA POR EL PM TRAS FALLO:\n{extra}"
                 )
                 if rc != 0:
@@ -200,6 +215,24 @@ def _paso(agente: str):
 
     node.__name__ = f"n_{agente}"
     return node
+
+
+def _paso_error_handler(agente: str):
+    """Error handler declarativo (LangGraph 1.2): tras agotar retries, escalar con contexto.
+
+    La firma exige el 2º parámetro anotado como NodeError (inyección por tipo).
+    El PM v2 sigue a cargo de los fallos rc≠0 (semánticos); esto cubre excepciones
+    duras (timeout, cancelación, crash del cliente).
+    """
+
+    def handler(state: dict, error: NodeError) -> Command:
+        detalle = f"{agente}: excepción {type(error.error).__name__}: {error.error}"
+        return Command(
+            update={"fallos": [detalle]},
+            goto="fallo",
+        )
+
+    return handler
 
 
 def n_qa_decide(state: dict) -> dict:
@@ -260,7 +293,11 @@ def _ruta_post_aprobar(state: dict) -> str:
 
 
 def _siguiente(state: dict) -> str | list:
-    """Routing determinista según RUTEO: ux? → Send(FE∥BE) → qa. Send = paralelo."""
+    """Routing determinista según RUTEO: ux? → Send(FE∥BE) → qa. Send = paralelo.
+
+    v2: el estado que llega ya no contiene __interrupt__ (GraphOutput lo separa),
+    pero el pop defensivo se mantiene como no-op inofensivo por compatibilidad.
+    """
     if state.get("fallos"):
         return "fallo"
     from langgraph.types import Send
@@ -277,7 +314,7 @@ def _siguiente(state: dict) -> str | list:
     for a in ("frontend", "backend"):
         if pendiente(a):
             sub = dict(state)
-            sub.pop("__interrupt__", None)
+            sub.pop("__interrupt__", None)  # defensivo: v1 legacy, v2 nunca lo incluye
             sends.append(Send(a, sub))
     if sends:
         return sends
@@ -301,19 +338,32 @@ def _ruta_pm_cambios(state: dict) -> str:
     return "fallo" if state.get("veredicto") == "FALLO_PLAN" else "esperar_aprobar"
 
 
-def build_graph():
-    conn = sqlite3.connect(str(FLOW_DB), check_same_thread=False)
-    saver = SqliteSaver(conn)
+async def build_graph():
+    """Compila el grafo. Async: AsyncSqliteSaver requiere running loop (aiosqlite).
+
+    Usar: graph = await build_graph()  (en _post_startup del bot, loop ya corriendo).
+    """
+    conn = await aiosqlite.connect(str(FLOW_DB))
+    saver = AsyncSqliteSaver(conn)
 
     g = StateGraph(FlowState)
     g.add_node("pm_plan", n_pm_plan)
     g.add_node("esperar_aprobar", n_esperar_aprobar)
     g.add_node("aprobar", n_aprobar)  # determinista: crea branch rr-feature-*
     g.add_node("pm_cambios", n_pm_cambios)
-    g.add_node("ux", _paso("ux"))
-    g.add_node("frontend", _paso("frontend"))
-    g.add_node("backend", _paso("backend"))
-    g.add_node("qa", _paso("qa"))
+
+    # Nodos de paso: async + TimeoutPolicy declarativo (única fuente: TIMEOUTS en core)
+    # + RetryPolicy para fallos transitorios + error_handler para excepciones duras.
+    # Nota: run_timeout = timeout por INTENTO + margen 60s (RetryPolicy re-invoca).
+    for agente in ("ux", "frontend", "backend", "qa"):
+        g.add_node(
+            agente,
+            _paso(agente),
+            timeout=TimeoutPolicy(run_timeout=TIMEOUTS.get(agente, 720) + 60),
+            retry_policy=RetryPolicy(max_attempts=2, retry_on=(ConnectionError, httpx.TransportError)),
+            error_handler=_paso_error_handler(agente),
+        )
+
     g.add_node("qa_decide", n_qa_decide)
     g.add_node("deploy", n_deploy)
     g.add_node("fallo", n_fallo)
