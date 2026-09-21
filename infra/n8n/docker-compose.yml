@@ -13,6 +13,11 @@ services:
       - GENERIC_TIMEZONE=America/Santiago
       - TZ=America/Santiago
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      # Instance AI (assistant del editor) — modelo custom vía Ollama Cloud (OpenAI-compatible)
+      - N8N_INSTANCE_AI_MODEL=glm-5.3-flash
+      - N8N_INSTANCE_AI_MODEL_URL=https://ollama.com/v1
+      - N8N_INSTANCE_AI_MODEL_API_KEY=${N8N_INSTANCE_AI_MODEL_API_KEY}
+      - N8N_INSTANCE_AI_SUPPORTS_STRUCTURED_OUTPUTS=true
       - N8N_PAYLOAD_SIZE_MAX=16
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=168

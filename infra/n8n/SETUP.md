@@ -14,20 +14,21 @@ n8n corre en Docker en el VPS (root@187.127.53.98) detrás de nginx. **Todo lo n
 3. **Secret**: en el VPS, crear `/opt/rumihome-rr/infra/n8n/.env` (NUNCA en el repo):
    ```
    N8N_ENCRYPTION_KEY=<generar: openssl rand -base64 32>
+   N8N_INSTANCE_AI_MODEL_API_KEY=<OLLAMA_API_KEY, la misma de /root/dev-agent.env>
    ```
-4. **Cert TLS**: el server block usa el wildcard-path de rumihome.io. Si el subdominio no está cubierto:
+4. **AI Assistant (Instance AI)**: ya viene configurado por env (modelo `glm-5.3-flash` vía `https://ollama.com/v1`, endpoint OpenAI Responses `/v1/responses` que Ollama Cloud soporta nativamente). Sin licencia n8n, sin proxy. Si se quiere otro modelo: cambiar `N8N_INSTANCE_AI_MODEL` y recrear.
+5. **Cert TLS**: el server block usa el cert dedicado `n8n.rumihome.io`. Si no existe:
    ```bash
-   certbot --nginx -d n8n.rumihome.io
+   certbot certonly --nginx -d n8n.rumihome.io
    ```
-   y apuntar `ssl_certificate` al nuevo cert.
 5. **Levantar**:
    ```bash
    cd /opt/rumihome-rr/infra/n8n && docker compose up -d
    ln -sf /etc/nginx/sites-available/n8n /etc/nginx/sites-enabled/n8n && nginx -t && systemctl reload nginx
    ```
-6. **Primer acceso**: `https://n8n.rumihome.io` → crear cuenta owner (Daniel). Auth propia de n8n; sin basic auth extra.
-7. **Backup cron**: `0 4 * * * /opt/rumihome-rr/infra/n8n/backup.sh` (tar a /root/backups/ + export JSON de workflows a `n8n/workflows/` → commit a GitHub).
-8. **Restaurar workflows**: importar `n8n/workflows/*.json` desde la UI (Import from file). Credenciales (Telegram token, etc.) se re-ingresan a mano — nunca en GitHub.
+7. **Primer acceso**: `https://n8n.rumihome.io` → crear cuenta owner (Daniel). Auth propia de n8n; sin basic auth extra.
+8. **Backup cron**: `0 4 * * * /opt/rumihome-rr/infra/n8n/backup.sh` (tar a /root/backups/ + export JSON de workflows a `n8n/workflows/` → commit a GitHub).
+9. **Restaurar workflows**: importar `n8n/workflows/*.json` desde la UI (Import from file). Credenciales (Telegram token, etc.) se re-ingresan a mano — nunca en GitHub.
 
 ## Reglas
 
