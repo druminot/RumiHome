@@ -20,7 +20,7 @@ n8n corre en Docker en el VPS (root@187.127.53.98) detrás de nginx. **Todo lo n
    SANDBOX_API_RUNNER_API_KEY=<generar: openssl rand -hex 24>
    N8N_RUNNERS_AUTH_TOKEN=<generar: openssl rand -hex 24>
    SEARXNG_SECRET=<generar: openssl rand -hex 24>
-   N8N_SANDBOX_VERSION=<última service/ de https://github.com/n8n-io/n8n-sandbox-service/releases>
+   N8N_SANDBOX_VERSION=<última sin 'v' de https://github.com/n8n-io/n8n-sandbox-service/releases, ej. 1.4.0>
    ```
 4. **AI Assistant (Instance AI)**: configurado por env (modelo `glm-5.3-flash` vía `https://ollama.com/v1`, endpoint OpenAI Responses `/v1/responses` que Ollama Cloud soporta nativamente). Sin licencia n8n, sin proxy. Sandbox self-hosted (`sandbox-certs` + `sandbox-api` + `sandbox-runner-1` privileged DinD — nunca exponer puertos) + web search vía SearXNG local incluidos en el compose. Si se quiere otro modelo: cambiar `N8N_INSTANCE_AI_MODEL` y recrear.
 5. **Cert TLS**: el server block usa el cert dedicado `n8n.rumihome.io`. Si no existe:
