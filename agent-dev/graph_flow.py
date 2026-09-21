@@ -68,6 +68,13 @@ class FlowState(TypedDict):
 def n_pm_plan(state: dict) -> dict:
     """PM clasifica complejidad, rutea y delega (formato v2)."""
     chat_id, feature = state["chat_id"], state["feature"]
+    # Limpiar artefactos de la feature anterior: sin esto el PM puede reutilizar
+    # el plan viejo (vimos al PM "verificar" el plan de T3 en vez de escribir uno nuevo).
+    for viejo in ("plan.md", "qa-veredicto.md"):
+        try:
+            (RR_DIR / ".rr" / viejo).unlink()
+        except OSError:
+            pass
     _reset_sessions()  # sesiones frescas por feature
     _emit(chat_id, "🧠 Pensando a detalle qué hacer y refinando internamente…")
     rc, out = _agent("pm", f"Nueva feature de Daniel: {feature}", timeout=1200)
