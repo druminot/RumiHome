@@ -88,9 +88,11 @@ def main() -> None:
 
     data = {"generated_at": datetime.now(timezone.utc).isoformat(), "prod": {}, "tags": [], "staging": {}, "branches": []}
 
-    # --- prod: main REMOTO (origin/main) — lo que promote.sh mergea ---
-    prod_sha = git(MAIN_REPO, "rev-parse", "origin/main").strip() or git(MAIN_REPO, "rev-parse", "HEAD").strip()
-    prod_tag = git(MAIN_REPO, "describe", "--tags", "--match", "prod-*", "--abbrev=0", "origin/main").strip()
+    # --- prod: HEAD REAL de /opt/rumihome (lo desplegado), no origin/main ---
+    # origin/main puede tener commits pushed directo que NO están desplegados.
+    prod_full = (git(MAIN_REPO, "rev-parse", "HEAD").strip() or git(MAIN_REPO, "rev-parse", "origin/main").strip())
+    prod_sha = prod_full
+    prod_tag = git(MAIN_REPO, "describe", "--tags", "--match", "prod-*", "--abbrev=0").strip()
     data["prod"] = {"sha": prod_sha[:7], "tag": prod_tag or None}
 
     # --- tags prod-* con commits entre tag-pre y tag ---
@@ -102,14 +104,12 @@ def main() -> None:
         commits = parse_commits(git(MAIN_REPO, "log", f"--format={FMT}", rng) or "", MAIN_REPO)
         data["tags"].append({"tag": tag, "date": tag[5:], "commits": commits[:MAX_COMMITS], "commit_count": len(commits)})
 
-    # --- staging: HEAD real del espejo (rr o rr-feature-*) vs main de PROD ---
-    # El diff es contra origin/main (GitHub), no contra el main local del espejo
-    # que puede estar viejo — así el panel refleja exactamente lo que promote
-    # fusionaría y no lista commits ya promovidos.
+    # --- staging: HEAD real del espejo vs HEAD real de prod ---
+    # El rango es <prod-desplegado>..HEAD — exactamente lo que falta para prod.
+    # (Usar origin/main sería incorrecto si hubiera commits pushed sin desplegar.)
     rr_branch = (git(RR_REPO, "rev-parse", "--abbrev-ref", "HEAD") or "rr").strip()
     rr_sha = git(RR_REPO, "rev-parse", "HEAD").strip()
-    prod_ref = "origin/main" if git(RR_REPO, "rev-parse", "-q", "--verify", "origin/main").strip() else "main"
-    ahead_raw = git(RR_REPO, "log", f"--format={FMT}", f"{prod_ref}..HEAD")
+    ahead_raw = git(RR_REPO, "log", f"--format={FMT}", f"{prod_full}..HEAD")
     ahead = parse_commits(ahead_raw, RR_REPO)
     data["staging"] = {"branch": rr_branch, "sha": rr_sha[:7], "ahead": ahead[:MAX_COMMITS], "ahead_count": len(ahead)}
 
