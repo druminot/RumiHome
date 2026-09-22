@@ -9,8 +9,10 @@ services:
     environment:
       FIREBASE_PROJECT_ID: rumihome-448217
       DB_PATH: /data/rumihome.db
+      DEPLOY_DATA_DIR: /deploy-data
     volumes:
       - rumihome_data:/data
+      - /var/lib/rumihome/deploy:/deploy-data
     networks:
       - rumihome
 

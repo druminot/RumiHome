@@ -3,6 +3,7 @@ import cors from 'cors'
 import { adminRouter, guestRouter } from './routes/admin.js'
 import { financeRouter } from './routes/finance.js'
 import { smarthomeRouter, smarthomeIngestRouter } from './routes/smarthome.js'
+import { deploymentsRouter } from './routes/deployments.js'
 import { requireAdmin } from './middleware/auth.js'
 import { firebaseConfigured } from './firebase-admin.js'
 
@@ -23,7 +24,7 @@ app.use('/api/guest', guestRouter)
 app.use('/api/smarthome', smarthomeIngestRouter)
 
 // CRM admin: protegido
-app.use('/api', requireAdmin, adminRouter, financeRouter, smarthomeRouter)
+app.use('/api', requireAdmin, adminRouter, financeRouter, smarthomeRouter, deploymentsRouter)
 
 app.use((_req, res) => res.status(404).json({ error: 'Ruta no encontrada' }))
 

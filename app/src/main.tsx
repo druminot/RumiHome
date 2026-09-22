@@ -5,6 +5,7 @@ import AdminLoginPage from './pages/AdminLogin'
 import AdminDashboardPage from './pages/AdminDashboard'
 import GuestLoginPage from './pages/GuestLogin'
 import GuestReservationPage from './pages/GuestReservation'
+import CodePanelPage from './pages/CodePanel'
 import './styles.css'
 
 const ADMIN_PATH = import.meta.env.VITE_ADMIN_PATH ?? '/admin'
@@ -18,6 +19,7 @@ export default function App() {
         <Route path={`${ADMIN_PATH}/panel`} element={<AdminDashboardPage />} />
         <Route path={GUEST_PATH} element={<GuestLoginPage />} />
         <Route path={`${GUEST_PATH}/:pnr`} element={<GuestReservationPage />} />
+        <Route path="/code" element={<CodePanelPage />} />
         <Route path="*" element={<Navigate to={ADMIN_PATH} replace />} />
       </Routes>
     </BrowserRouter>
