@@ -262,12 +262,11 @@ export default function CodePanelPage() {
 }
 
 /**
- * GitTree — dibujo SVG del árbol de versiones.
- * Layout vertical (abajo = más reciente):
- *   · línea principal PROD (verde): nodos por tag prod-*
- *   · línea STAGING (ámbar): commits del agente no promovidos
- *   · ramitas FEATURES (gris): branches rr-feature-* adelantados
- *   · flecha MERGE staging→prod con el botón MERGE
+ * GitTree — dibujo SVG del árbol de versiones (vertical, reciente abajo).
+ *   · línea PROD (verde): nodo por tag prod-*
+ *   · línea STAGING (ámbar): commits del agente no promovidos (si los hay)
+ *   · ramitas FEATURES (azul): SIEMPRE nacen del ÚLTIMO nodo activo
+ *   · flecha MERGE staging→prod cuando hay pendientes
  */
 function GitTree({ history, onPromote, aheadCount }: {
   history: HistoryData | null
@@ -275,88 +274,70 @@ function GitTree({ history, onPromote, aheadCount }: {
   aheadCount: number
 }) {
   const W = 360
-  const PAD_TOP = 30
-  const X_PROD = 30, X_STG = 150, X_FEAT = 260
-  const rowH = 26
+  const PAD_TOP = 34
+  const X_PROD = 24, X_STG = 150, X_FEAT = 250
+  const rowH = 28
 
-  const tags = (history?.tags ?? []).slice(0, 8) // máx 8 tags
-  const ahead = (history?.staging.ahead ?? []).slice(0, 6) // máx 6 commits
-  const feats = (history?.branches ?? []).filter((b) => b.ahead_of_rr > 0).slice(0, 4)
+  const tags = (history?.tags ?? []).slice(0, 8)
+  const ahead = (history?.staging.ahead ?? []).slice(0, 6)
+  const feats = (history?.branches ?? []).filter((b) => b.ahead_of_rr > 0).slice(0, 5)
 
-  const prodRows = tags.length + 1 // nodos prod: uno por tag + nodo actual
   const stgRows = ahead.length
-  const featRows = feats.length
-  const H = PAD_TOP + (prodRows + stgRows + featRows + 2) * rowH
+  const H = PAD_TOP + (tags.length + stgRows + feats.length + 3) * rowH
 
-  const nodes: { x: number; y: number; color: string; label: string; sub?: string }[] = []
-
-  // prod: nodo actual (HEAD) arriba... mejor abajo=reciente: dibujamos de arriba (antiguo) a abajo (nuevo)
   const prodStart = PAD_TOP
-  // nodos prod de arriba hacia abajo: tags antiguos → tag actual
-  tags.forEach((t, i) => {
-    nodes.push({ x: X_PROD, y: prodStart + i * rowH, color: '#10B981', label: t.tag.replace('prod-', ''), sub: `${t.commit_count}c` })
-  })
-  // staging: bajo prod
-  const stgStart = prodStart + prodRows * rowH + rowH * 0.6
-  ahead.forEach((c, i) => {
-    nodes.push({ x: X_STG, y: stgStart + i * rowH, color: '#F59E0B', label: `${c.sha} ${c.msg.slice(0, 18)}` })
-  })
-  // features: al final
-  const featStart = stgStart + Math.max(stgRows, 1) * rowH + rowH * 0.6
-  feats.forEach((b, i) => {
-    nodes.push({ x: X_FEAT, y: featStart + i * rowH, color: '#3B82F6', label: b.name.replace('rr-feature-', '').slice(0, 20) })
-  })
-
-  const prodEndY = prodStart + (prodRows - 1) * rowH
+  const prodEndY = prodStart + Math.max(tags.length - 1, 0) * rowH
+  const stgStart = prodEndY + rowH * 1.4
+  const stgEndY = stgStart + Math.max(stgRows - 1, 0) * rowH
+  const featOriginY = stgRows > 0 ? stgEndY : prodEndY
+  const featOriginX = stgRows > 0 ? X_STG : X_PROD
+  const featStart = featOriginY + rowH * 1.4
 
   return (
     <div style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16, background: '#FAFAFA' }}>
       <h3 style={{ margin: '0 0 8px', fontSize: 14 }}>🌳 Árbol de versiones</h3>
       <svg width={W} height={H} style={{ display: 'block', maxWidth: '100%' }} viewBox={`0 0 ${W} ${H}`}>
-        {/* leyenda */}
         <g fontSize="11" fill="#666">
-          <circle cx={18} cy={14} r={5} fill="#10B981" /> <text x={28} y={18}>prod (main)</text>
-          <circle cx={120} cy={14} r={5} fill="#F59E0B" /> <text x={130} y={18}>staging (rr)</text>
-          <circle cx={225} cy={14} r={5} fill="#3B82F6" /> <text x={235} y={18}>features</text>
+          <circle cx={16} cy={12} r={5} fill="#10B981" /> <text x={25} y={16}>prod</text>
+          <circle cx={70} cy={12} r={5} fill="#F59E0B" /> <text x={79} y={16}>staging</text>
+          <circle cx={140} cy={12} r={5} fill="#3B82F6" /> <text x={149} y={16}>features</text>
         </g>
-        {/* línea vertical prod */}
         <line x1={X_PROD} y1={prodStart} x2={X_PROD} y2={prodEndY} stroke="#10B981" strokeWidth={3} />
-        {/* nodos prod */}
         {tags.map((t, i) => (
           <g key={t.tag}>
             <circle cx={X_PROD} cy={prodStart + i * rowH} r={6} fill="#10B981" />
-            <text x={X_PROD + 12} y={prodStart + i * rowH + 4} fontSize="11" fill="#333">{t.tag.replace('prod-', '')}</text>
+            <text x={X_PROD + 14} y={prodStart + i * rowH + 4} fontSize="11" fill="#333">
+              {t.tag.replace('prod-', '')} <tspan fill="#999">· {t.commit_count}c</tspan>
+            </text>
           </g>
         ))}
-        {/* línea staging: sube desde el nodo prod actual */}
-        {ahead.length > 0 && (
+        {stgRows > 0 && (
           <>
-            <path d={`M ${X_PROD} ${prodEndY} C ${X_PROD} ${prodEndY + 14}, ${X_STG} ${stgStart - 14}, ${X_STG} ${stgStart}`} fill="none" stroke="#F59E0B" strokeWidth={2.5} />
+            <path d={`M ${X_PROD} ${prodEndY} C ${X_PROD} ${prodEndY + 12}, ${X_STG} ${stgStart - 12}, ${X_STG} ${stgStart}`} fill="none" stroke="#F59E0B" strokeWidth={2.5} />
             {ahead.map((c, i) => (
               <g key={c.sha}>
+                {i < stgRows - 1 && <line x1={X_STG} y1={stgStart + i * rowH + 6} x2={X_STG} y2={stgStart + (i + 1) * rowH - 6} stroke="#F59E0B" strokeWidth={2} />}
                 <circle cx={X_STG} cy={stgStart + i * rowH} r={5} fill="#F59E0B" />
-                {i < ahead.length - 1 && <line x1={X_STG} y1={stgStart + i * rowH + 6} x2={X_STG} y2={stgStart + (i + 1) * rowH - 6} stroke="#F59E0B" strokeWidth={2} />}
-                <text x={X_STG + 12} y={stgStart + i * rowH + 4} fontSize="10" fill="#444">{c.msg.slice(0, 26)}</text>
+                <text x={X_STG + 14} y={stgStart + i * rowH + 4} fontSize="10" fill="#444">{c.msg.slice(0, 24)}</text>
               </g>
             ))}
-            {/* flecha MERGE hacia prod */}
-            <g>
-              <path d={`M ${X_STG - 8} ${stgStart + (stgRows - 1) * rowH} C ${X_PROD + 30} ${stgStart + (stgRows - 1) * rowH}, ${X_PROD + 30} ${prodEndY}, ${X_PROD + 10} ${prodEndY}`} fill="none" stroke="#B45309" strokeWidth={2} strokeDasharray="4 3" markerEnd="url(#arrow)" />
-              <text x={X_PROD + 34} y={stgStart + (stgRows - 1) * rowH / 2} fontSize="10" fill="#B45309">MERGE</text>
-            </g>
+            <path d={`M ${X_STG - 10} ${stgEndY} C ${X_PROD + 40} ${stgEndY + 16}, ${X_PROD + 40} ${prodEndY - 16}, ${X_PROD + 12} ${prodEndY - 4}`} fill="none" stroke="#B45309" strokeWidth={2} strokeDasharray="4 3" markerEnd="url(#arrow)" />
+            <text x={X_PROD + 42} y={stgEndY - 12} fontSize="10" fill="#B45309" fontWeight="bold">MERGE</text>
           </>
         )}
-        {/* features saliendo de staging */}
         {feats.map((b, i) => {
           const by = featStart + i * rowH
           return (
             <g key={b.name}>
-              <line x1={X_STG} y1={featStart - rowH * 0.4} x2={X_FEAT - 10} y2={by} stroke="#93C5FD" strokeWidth={2} />
+              <path d={`M ${featOriginX} ${featOriginY} C ${featOriginX + 40} ${featOriginY}, ${X_FEAT - 40} ${by}, ${X_FEAT - 10} ${by}`} fill="none" stroke="#93C5FD" strokeWidth={2} />
               <circle cx={X_FEAT} cy={by} r={5} fill="#3B82F6" />
-              <text x={X_FEAT + 8} y={by + 4} fontSize="10" fill="#444">{b.name.replace('rr-feature-', '').slice(0, 22)}</text>
+              <text x={X_FEAT + 10} y={by + 4} fontSize="10" fill="#444">{b.name.replace('rr-feature-', '').slice(0, 24)}</text>
             </g>
           )
         })}
+        <circle cx={featOriginX} cy={featOriginY} r={8} fill="none" stroke={stgRows > 0 ? '#F59E0B' : '#10B981'} strokeWidth={2}>
+          <animate attributeName="r" values="6;9;6" dur="2s" repeatCount="indefinite" />
+        </circle>
         <defs>
           <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
             <path d="M0,0 L6,3 L0,6 Z" fill="#B45309" />
