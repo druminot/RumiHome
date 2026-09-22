@@ -34,6 +34,14 @@ def git(repo: str, *args: str) -> str:
     return r.stdout if r.returncode == 0 else ""
 
 
+def git_show(repo: str, sha: str) -> str:
+    r = subprocess.run(
+        ["git", "--git-dir", f"{repo}/.git", "--work-tree", repo, "show", "--numstat", "--format=", sha],
+        capture_output=True, text=True, timeout=30,
+    )
+    return r.stdout if r.returncode == 0 else ""
+
+
 def parse_commits(raw: str, repo: str) -> list:
     out = []
     for line in raw.splitlines():
@@ -41,7 +49,7 @@ def parse_commits(raw: str, repo: str) -> list:
             continue
         sha, h, author, date, msg = line.split("\x01", 4)
         files, add, dele = [], 0, 0
-        for st in (git(repo, "show", "--numstat", "--format=", sha) or "").splitlines():
+        for st in (git_show(repo, sha) or "").splitlines():
             parts = st.split("\t")
             if len(parts) == 3:
                 a, d, path = parts
@@ -73,13 +81,13 @@ def main() -> None:
     for tag in real[:MAX_TAGS]:
         pre = f"{tag}-pre"
         rng = f"{pre}..{tag}" if (git(MAIN_REPO, "rev-parse", "-q", "--verify", pre).strip()) else tag
-        commits = parse_commits(git(MAIN_REPO, "log", f"--format={FMT}", rng, repo=MAIN_REPO) or "", MAIN_REPO)
+        commits = parse_commits(git(MAIN_REPO, "log", f"--format={FMT}", rng) or "", MAIN_REPO)
         data["tags"].append({"tag": tag, "date": tag[5:], "commits": commits[:MAX_COMMITS], "commit_count": len(commits)})
 
     # --- staging (rr): adelantos respecto a main ---
     rr_branch = (git(RR_REPO, "rev-parse", "--abbrev-ref", "HEAD") or "rr").strip()
     rr_sha = git(RR_REPO, "rev-parse", "HEAD").strip()
-    ahead_raw = git(RR_REPO, "log", f"--format={FMT}", f"main..{rr_branch}", repo=RR_REPO)
+    ahead_raw = git(RR_REPO, "log", f"--format={FMT}", f"main..{rr_branch}")
     ahead = parse_commits(ahead_raw, RR_REPO)
     data["staging"] = {"branch": rr_branch, "sha": rr_sha[:7], "ahead": ahead[:MAX_COMMITS], "ahead_count": len(ahead)}
 
