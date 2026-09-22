@@ -68,7 +68,8 @@ def main() -> None:
                     result = {"ok": False, "error": err, "action": req.get("action")}
                 elif STAGING:
                     result = {"ok": True, "dry_run": True, "action": req["action"],
-                              "detail": f"staging dry-run: {req['action']} {'(tag ' + req['tag'] + ')' if req.get('tag') else ''}"}
+                              "tag": req.get("tag"), "restore_db": bool(req.get("restore_db")),
+                              "detail": f"staging dry-run: {req['action']} {'(tag ' + req['tag'] + ')' if req.get('tag') else ''}{' +restore_db' if req.get('restore_db') else ''}"}
                 elif req["action"] == "promote":
                     rc, out = run_cmd(["bash", os.path.join(PROD_DIR, "scripts", "promote.sh")], 1800)
                     result = {"ok": rc == 0, "rc": rc, "output": out, "action": "promote"}
