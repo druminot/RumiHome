@@ -1,0 +1,49 @@
+{
+  "updatedAt": "2026-09-22T01:51:29.905Z",
+  "createdAt": "2026-09-22T01:51:27.681Z",
+  "id": "hMpPwLSzdxFb1szw",
+  "name": "My workflow",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [],
+  "connections": {},
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "83da06f6-6e18-47de-b216-d0eefc8f0b8a",
+  "activeVersionId": null,
+  "versionCounter": 2,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-09-22T01:51:27.690Z",
+      "createdAt": "2026-09-22T01:51:27.690Z",
+      "role": "workflow:owner",
+      "workflowId": "hMpPwLSzdxFb1szw",
+      "projectId": "xUCWgPQ3ybSpJNpz",
+      "project": {
+        "updatedAt": "2026-09-20T20:07:14.771Z",
+        "createdAt": "2026-09-20T18:57:54.656Z",
+        "id": "xUCWgPQ3ybSpJNpz",
+        "name": "Daniel Rumi <daniel.ruminot.moscoso@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "76bff0f1-a9ab-4b52-9e13-6308d1b1d6e9"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}
