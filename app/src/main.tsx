@@ -10,6 +10,10 @@ import './styles.css'
 
 const ADMIN_PATH = import.meta.env.VITE_ADMIN_PATH ?? '/admin'
 const GUEST_PATH = import.meta.env.VITE_GUEST_PATH ?? '/reserva'
+// En staging la SPA se sirve bajo /rr/app/ (base de Vite) — el router client
+// recibe la ruta completa; en prod base=/ y la ruta es /code.
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '')
+const CODE_PATH = BASE === '' ? '/code' : `${BASE}/code`
 
 export default function App() {
   return (
@@ -19,7 +23,7 @@ export default function App() {
         <Route path={`${ADMIN_PATH}/panel`} element={<AdminDashboardPage />} />
         <Route path={GUEST_PATH} element={<GuestLoginPage />} />
         <Route path={`${GUEST_PATH}/:pnr`} element={<GuestReservationPage />} />
-        <Route path="/code" element={<CodePanelPage />} />
+        <Route path={CODE_PATH} element={<CodePanelPage />} />
         <Route path="*" element={<Navigate to={ADMIN_PATH} replace />} />
       </Routes>
     </BrowserRouter>
