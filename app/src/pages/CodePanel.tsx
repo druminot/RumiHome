@@ -142,7 +142,7 @@ export default function CodePanelPage() {
   const ahead = history?.staging.ahead ?? []
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px 80px' }}>
+    <div style={{ maxWidth: 1240, margin: '0 auto', padding: '24px 16px 80px' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>RumiHome — Control de versiones</h1>
@@ -175,6 +175,8 @@ export default function CodePanelPage() {
       )}
 
       {/* Timeline de prod */}
+      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
       <section>
         <h2 style={{ fontSize: 18 }}>Historial de producción</h2>
         {(history?.tags ?? []).map((t, i) => (
@@ -207,6 +209,13 @@ export default function CodePanelPage() {
           ))}
         </section>
       )}
+        </div>
+
+        {/* Columna derecha: árbol git visual */}
+        <div style={{ width: 360, flexShrink: 0, position: 'sticky', top: 16 }}>
+          <GitTree history={history} onPromote={() => ahead.length > 0 && setConfirmAction({ kind: 'promote' })} aheadCount={ahead.length} />
+        </div>
+      </div>
 
       {/* Modal de confirmación */}
       {confirmAction && (
@@ -248,6 +257,117 @@ export default function CodePanelPage() {
       <footer style={{ marginTop: 40, color: '#999', fontSize: 12 }}>
         Datos generados {history && `hace ${timeAgo(history.generated_at)}`} · botón MERGE encola una acción validada; el executor del host aplica healthcheck + auto-rollback.
       </footer>
+    </div>
+  )
+}
+
+/**
+ * GitTree — dibujo SVG del árbol de versiones.
+ * Layout vertical (abajo = más reciente):
+ *   · línea principal PROD (verde): nodos por tag prod-*
+ *   · línea STAGING (ámbar): commits del agente no promovidos
+ *   · ramitas FEATURES (gris): branches rr-feature-* adelantados
+ *   · flecha MERGE staging→prod con el botón MERGE
+ */
+function GitTree({ history, onPromote, aheadCount }: {
+  history: HistoryData | null
+  onPromote: () => void
+  aheadCount: number
+}) {
+  const W = 360
+  const PAD_TOP = 30
+  const X_PROD = 30, X_STG = 150, X_FEAT = 260
+  const rowH = 26
+
+  const tags = (history?.tags ?? []).slice(0, 8) // máx 8 tags
+  const ahead = (history?.staging.ahead ?? []).slice(0, 6) // máx 6 commits
+  const feats = (history?.branches ?? []).filter((b) => b.ahead_of_rr > 0).slice(0, 4)
+
+  const prodRows = tags.length + 1 // nodos prod: uno por tag + nodo actual
+  const stgRows = ahead.length
+  const featRows = feats.length
+  const H = PAD_TOP + (prodRows + stgRows + featRows + 2) * rowH
+
+  const nodes: { x: number; y: number; color: string; label: string; sub?: string }[] = []
+
+  // prod: nodo actual (HEAD) arriba... mejor abajo=reciente: dibujamos de arriba (antiguo) a abajo (nuevo)
+  const prodStart = PAD_TOP
+  // nodos prod de arriba hacia abajo: tags antiguos → tag actual
+  tags.forEach((t, i) => {
+    nodes.push({ x: X_PROD, y: prodStart + i * rowH, color: '#10B981', label: t.tag.replace('prod-', ''), sub: `${t.commit_count}c` })
+  })
+  // staging: bajo prod
+  const stgStart = prodStart + prodRows * rowH + rowH * 0.6
+  ahead.forEach((c, i) => {
+    nodes.push({ x: X_STG, y: stgStart + i * rowH, color: '#F59E0B', label: `${c.sha} ${c.msg.slice(0, 18)}` })
+  })
+  // features: al final
+  const featStart = stgStart + Math.max(stgRows, 1) * rowH + rowH * 0.6
+  feats.forEach((b, i) => {
+    nodes.push({ x: X_FEAT, y: featStart + i * rowH, color: '#3B82F6', label: b.name.replace('rr-feature-', '').slice(0, 20) })
+  })
+
+  const prodEndY = prodStart + (prodRows - 1) * rowH
+
+  return (
+    <div style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16, background: '#FAFAFA' }}>
+      <h3 style={{ margin: '0 0 8px', fontSize: 14 }}>🌳 Árbol de versiones</h3>
+      <svg width={W} height={H} style={{ display: 'block', maxWidth: '100%' }} viewBox={`0 0 ${W} ${H}`}>
+        {/* leyenda */}
+        <g fontSize="11" fill="#666">
+          <circle cx={18} cy={14} r={5} fill="#10B981" /> <text x={28} y={18}>prod (main)</text>
+          <circle cx={120} cy={14} r={5} fill="#F59E0B" /> <text x={130} y={18}>staging (rr)</text>
+          <circle cx={225} cy={14} r={5} fill="#3B82F6" /> <text x={235} y={18}>features</text>
+        </g>
+        {/* línea vertical prod */}
+        <line x1={X_PROD} y1={prodStart} x2={X_PROD} y2={prodEndY} stroke="#10B981" strokeWidth={3} />
+        {/* nodos prod */}
+        {tags.map((t, i) => (
+          <g key={t.tag}>
+            <circle cx={X_PROD} cy={prodStart + i * rowH} r={6} fill="#10B981" />
+            <text x={X_PROD + 12} y={prodStart + i * rowH + 4} fontSize="11" fill="#333">{t.tag.replace('prod-', '')}</text>
+          </g>
+        ))}
+        {/* línea staging: sube desde el nodo prod actual */}
+        {ahead.length > 0 && (
+          <>
+            <path d={`M ${X_PROD} ${prodEndY} C ${X_PROD} ${prodEndY + 14}, ${X_STG} ${stgStart - 14}, ${X_STG} ${stgStart}`} fill="none" stroke="#F59E0B" strokeWidth={2.5} />
+            {ahead.map((c, i) => (
+              <g key={c.sha}>
+                <circle cx={X_STG} cy={stgStart + i * rowH} r={5} fill="#F59E0B" />
+                {i < ahead.length - 1 && <line x1={X_STG} y1={stgStart + i * rowH + 6} x2={X_STG} y2={stgStart + (i + 1) * rowH - 6} stroke="#F59E0B" strokeWidth={2} />}
+                <text x={X_STG + 12} y={stgStart + i * rowH + 4} fontSize="10" fill="#444">{c.msg.slice(0, 26)}</text>
+              </g>
+            ))}
+            {/* flecha MERGE hacia prod */}
+            <g>
+              <path d={`M ${X_STG - 8} ${stgStart + (stgRows - 1) * rowH} C ${X_PROD + 30} ${stgStart + (stgRows - 1) * rowH}, ${X_PROD + 30} ${prodEndY}, ${X_PROD + 10} ${prodEndY}`} fill="none" stroke="#B45309" strokeWidth={2} strokeDasharray="4 3" markerEnd="url(#arrow)" />
+              <text x={X_PROD + 34} y={stgStart + (stgRows - 1) * rowH / 2} fontSize="10" fill="#B45309">MERGE</text>
+            </g>
+          </>
+        )}
+        {/* features saliendo de staging */}
+        {feats.map((b, i) => {
+          const by = featStart + i * rowH
+          return (
+            <g key={b.name}>
+              <line x1={X_STG} y1={featStart - rowH * 0.4} x2={X_FEAT - 10} y2={by} stroke="#93C5FD" strokeWidth={2} />
+              <circle cx={X_FEAT} cy={by} r={5} fill="#3B82F6" />
+              <text x={X_FEAT + 8} y={by + 4} fontSize="10" fill="#444">{b.name.replace('rr-feature-', '').slice(0, 22)}</text>
+            </g>
+          )
+        })}
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#B45309" />
+          </marker>
+        </defs>
+      </svg>
+      {aheadCount > 0 && (
+        <button className="btn btn-primary" style={{ width: '100%', marginTop: 10 }} onClick={onPromote}>
+          ▲ MERGE {aheadCount} commit(s) → PROD
+        </button>
+      )}
     </div>
   )
 }
