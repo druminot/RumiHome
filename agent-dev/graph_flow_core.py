@@ -233,6 +233,22 @@ def _read_preguntas() -> list:
     return preguntas
 
 
+def _read_dato_pedido() -> str:
+    """Lee y CONSUME .rr/dato-pedido.md (marcador ## DATO_PEDIDO). Lo escribe un
+    agente ejecutor cuando necesita un dato que solo Daniel puede darle; el nodo
+    _paso lo convierte en interrupt (pausa del grafo) y re-inyecta la respuesta."""
+    p = RR_DIR / ".rr" / "dato-pedido.md"
+    try:
+        texto = p.read_text()
+    except OSError:
+        return ""
+    p.unlink(missing_ok=True)
+    if "DATO_PEDIDO" not in texto:
+        return ""
+    lineas = [l.strip() for l in texto.splitlines() if l.strip() and not l.strip().startswith("#")]
+    return "\n".join(lineas)[:800]
+
+
 def _read_route() -> dict:
     """Lee la sección RUTEO de .rr/plan.md. QA siempre True (fallback defensivo)."""
     route = {"ux": True, "frontend": True, "backend": True, "qa": True}

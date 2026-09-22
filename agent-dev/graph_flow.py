@@ -35,6 +35,7 @@ from graph_flow_core import (
     _git_summary,
     _parse_tasks,
     _qa_veredicto,
+    _read_dato_pedido,
     _read_preguntas,
     _read_route,
     _reset_sessions,
@@ -216,6 +217,10 @@ def _paso(agente: str):
 
         rc, out = await intento(instruccion_base)
         if rc != 0:
+            # Puede ser un DATO_PEDIDO disfrazado de salida no-cero: revisar antes de fallar.
+            dato = _read_dato_pedido()
+            if dato:
+                return await _pedir_dato(state, agente, instruccion_base, dato)
             fallo = f"agente {agente} salió rc={rc}" + (" (timeout)" if rc == 124 else "")
             log.warning("Paso %s falló: %s", agente, fallo)
             _emit(chat_id, f"⚠️ {etiqueta.split(' ', 1)[0]} falló ({fallo}) — consultando al PM…")
@@ -247,10 +252,44 @@ def _paso(agente: str):
                     return {"fallos": [f"{fallo} ×2 — decisión PM: {diag_out[-600:]}"]}
             else:
                 return {"fallos": [f"{fallo} — decisión PM: ESCALAR. {diag_out[-600:]}"]}
+        # rc==0 pero el agente pudo dejar un DATO_PEDIDO (terminó su turno sin completar)
+        dato = _read_dato_pedido()
+        if dato:
+            return await _pedir_dato(state, agente, instruccion_base, dato)
         return {"hechos": [agente]}
 
     node.__name__ = f"n_{agente}"
     return node
+
+
+async def _pedir_dato(state: dict, agente: str, instruccion_base: str, pregunta: str) -> dict:
+    """El agente necesita un dato que solo Daniel tiene: pausa el grafo con
+    interrupt, emite la pregunta por Telegram y — al reanudar con la respuesta —
+    re-invoca al MISMO agente con el dato inyectado. Máx 1 pregunta por paso."""
+    from langgraph.types import interrupt
+
+    chat_id = state["chat_id"]
+    etiqueta = {"ux": "🎨 UX", "frontend": "⚙️ Frontend", "backend": "🗄 Backend", "qa": "🔍 QA"}[agente]
+    _emit(chat_id, f"❓ {etiqueta} necesita un dato tuyo:\n\n{pregunta}\n\nResponde directo con el dato · CANCELAR para abortar.")
+    respuesta = str(interrupt({"tipo": "dato_pedido", "agente": agente, "pregunta": pregunta[:400]}))
+    if respuesta.upper() == "CANCELAR":
+        return {"veredicto": "CANCELADO"}
+    # Re-invocación con el dato real (continúa la tarea pendiente, no la reinicia)
+    _emit(chat_id, f"✅ Dato recibido — {etiqueta} continúa…")
+    rc, out = await _agent_async(
+        agente,
+        f"{instruccion_base}\n\nDATO QUE PEDISTE — RESPUESTA DE DANIEL (úsalo tal cual, NO lo inventes):\n{respuesta[:800]}\n\n"
+        "Retoma la tarea pendiente donde la dejaste (revisa plan.md y tu trabajo previo en el branch).",
+        timeout=TIMEOUTS.get(agente, 720),
+    )
+    _trace(state["feature"], f"{agente}_dato", out)
+    if rc != 0:
+        return {"fallos": [f"{agente} falló tras recibir el dato (rc={rc}): {out[-400:]}"]}
+    # Tras recibir el dato puede pedir OTRO (máx 1 por vuelta — si insiste, escala)
+    otro = _read_dato_pedido()
+    if otro:
+        return {"fallos": [f"{agente} pidió otro dato tras recibir respuesta — escalando: {otro[:300]}"]}
+    return {"hechos": [agente]}
 
 
 def _paso_error_handler(agente: str):

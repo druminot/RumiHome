@@ -41,7 +41,7 @@ _ui = {
     "feature": None,
     "thread_id": None,
     "runner": None,  # asyncio.Task del grafo en curso
-    "awaiting": None,  # None | "plan" | "pregunta" (qué interrupt está pausado)
+    "awaiting": None,  # None | "plan" | "pregunta" (PM) | "dato" (agente ejecutor)
 }
 
 _drainer_task: asyncio.Task | None = None  # type: ignore[name-defined]
@@ -117,7 +117,12 @@ async def cmd_estado(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     }.get(_ui["state"], _ui["state"])
     msg = f"📌 Estado: {humano}\n📌 Feature: {_ui['feature'] or '—'}"
     if _ui["state"] == "awaiting_approval":
-        msg += "\n\n❓ Pregunta del PM pendiente: responde directo con tus respuestas." if _ui.get("awaiting") == "pregunta" else "\n\nResponde APROBAR / CAMBIOS: <ajustes> / CANCELAR."
+        if _ui.get("awaiting") == "pregunta":
+            msg += "\n\n❓ Pregunta del PM pendiente: responde directo con tus respuestas."
+        elif _ui.get("awaiting") == "dato":
+            msg += "\n\n❓ Un agente necesita un dato tuyo: responde directo."
+        else:
+            msg += "\n\nResponde APROBAR / CAMBIOS: <ajustes> / CANCELAR."
     await update.message.reply_text(msg)
 
 
@@ -195,12 +200,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     # Texto libre durante awaiting_approval:
-    #  · respuesta a una PREGUNTA del PM → se pasa tal cual al interrupt
+    #  · respuesta a una PREGUNTA del PM o a un DATO pedido por un agente →
+    #    se pasa tal cual al interrupt correspondiente
     #  · cualquier otra pausa → hint de los comandos válidos
     if _ui["state"] == "awaiting_approval":
-        if _ui.get("awaiting") == "pregunta":
+        if _ui.get("awaiting") in ("pregunta", "dato"):
             _ui["awaiting"] = None
-            await _resume(chat_id, context, text)  # respuesta libre → n_preguntar
+            await _resume(chat_id, context, text)  # respuesta libre → n_preguntar / _pedir_dato
             return
         await update.message.reply_text("⏸ Esperando tu decisión: APROBAR · CAMBIOS: <ajuste> · CANCELAR.")
         return
@@ -248,10 +254,11 @@ async def _start_feature(chat_id: int, feature: str) -> None:
             final_v = final.value if hasattr(final, "value") else final
             interrupts = getattr(final, "interrupts", [])
             veredicto = final_v.get("veredicto", "")
-            # Interrupt activo (esperar_aprobar o preguntar): quedamos esperando al humano
+            # Interrupt activo (esperar_aprobar, preguntar o dato_pedido): esperando al humano
             if interrupts and veredicto in ("", "PREGUNTA_PM"):
-                tipo = getattr(interrupts[0].value, "get", lambda k, d=None: None)("tipo") if hasattr(interrupts[0].value, "get") else getattr(interrupts[0].value, "tipo", None)
-                _ui["awaiting"] = "pregunta" if tipo == "pregunta_pm" else "plan"
+                val = interrupts[0].value
+                tipo = val.get("tipo") if hasattr(val, "get") else getattr(val, "tipo", None)
+                _ui["awaiting"] = {"pregunta_pm": "pregunta", "dato_pedido": "dato"}.get(tipo, "plan")
                 _ui.update(state="awaiting_approval")
                 return
             if veredicto == "FALLO":
