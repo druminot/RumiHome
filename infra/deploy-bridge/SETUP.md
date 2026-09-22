@@ -65,7 +65,8 @@ systemctl enable --now rumihome-deploy-history-dev.timer rumihome-deploy-history
 ## Seguridad
 
 - El dir de datos es lo ÚNICO que monta el server API (rw). Sin git, sin repos, sin secretos.
-- executor revalida: acción ∈ {promote, rollback}, tag regex `^prod-[a-z0-9][a-z0-9-]*$` (tags reales: `-HHMM`, `-base`, `-final`, `pre-*`), promote sin restore_db.
+- executor revalida: acción ∈ {promote, rollback, reject}, tag regex `^prod-[a-z0-9][a-z0-9-]*$` (tags reales: `-HHMM`, `-base`, `-final`, `pre-*`), branch de reject regex `^rr-feature-[a-z0-9-]+$`, promote sin restore_db.
+- `reject` (botón RECHAZAR del panel): descarta cambios de staging SIN tocar prod — archiva `rejected-<fecha>` y resetea rr a main. Script: `scripts/reject.sh`.
 - promote.sh/rollback.sh ya protegen: branch guard, HALT, dirty tree, healthcheck + auto-rollback, DB backup pre-promote.
 - Lock file evita promotes/rollbacks concurrentes.
 - STAGING=1 = dry-run (solo escribe result sin ejecutar).
