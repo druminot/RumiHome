@@ -20,6 +20,10 @@ interface HistoryData {
   branches: { name: string; sha: string; date: string; ahead_of_rr: number }[]
 }
 
+// API con la misma base del deploy: en staging /rr/api/*, en prod /api/*
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '')
+const API_BASE = BASE === '' ? '/api' : `${BASE}/api`
+
 const timeAgo = (iso: string) => {
   const d = (Date.now() - new Date(iso).getTime()) / 1000
   if (d < 90) return 'ahora'
@@ -53,7 +57,7 @@ export default function CodePanelPage() {
   }, [token])
 
   const loadHistory = useCallback(async () => {
-    const r = await api('/api/deployments/history')
+    const r = await api(`${API_BASE}/deployments/history`)
     if (r.ok) { setHistory(r.data); setLoadErr(null) } else setLoadErr(r.data?.error ?? `HTTP ${r.status}`)
   }, [api])
 
@@ -89,16 +93,16 @@ export default function CodePanelPage() {
     setBusy(kind === 'promote' ? 'promote' : `rollback-${tag}`)
     setResult(null)
     try {
-      const n = await api('/api/deployments/nonce')
+      const n = await api(`${API_BASE}/deployments/nonce`)
       if (!n.ok) { setResult(`❌ ${n.data?.error ?? 'nonce falló'}`); return }
       const body: Record<string, string | boolean> = { nonce: n.data.nonce }
       if (kind === 'rollback' && tag) { body.tag = tag; body.restore_db = restoreDb }
-      const r = await api(`/api/deployments/${kind}`, { method: 'POST', body: JSON.stringify(body) })
+      const r = await api(`${API_BASE}/deployments/${kind}`, { method: 'POST', body: JSON.stringify(body) })
       if (r.status !== 202) { setResult(`❌ ${r.data?.error ?? `HTTP ${r.status}`}`); return }
       // Polling del resultado (máx 30 min)
       for (let i = 0; i < 900; i++) {
         await new Promise((s) => setTimeout(s, 2000))
-        const st = await api(`/api/deployments/status/${r.data.id}`)
+        const st = await api(`${API_BASE}/deployments/status/${r.data.id}`)
         if (st.status === 200 && !st.data.pending) {
           const d = st.data
           setResult(d.ok ? `✅ ${kind === 'promote' ? 'Promote' : 'Rollback'} OK${d.dry_run ? ' (staging dry-run)' : ''}\n${(d.output ?? d.detail ?? '').slice(-600)}` : `❌ FALLO (rc=${d.rc ?? '?'}):\n${(d.output ?? d.error ?? '').slice(-600)}`)
