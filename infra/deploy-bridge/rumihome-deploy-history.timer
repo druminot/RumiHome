@@ -1,0 +1,9 @@
+[Unit]
+Description=RumiHome deploy-bridge: history cada minuto
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target

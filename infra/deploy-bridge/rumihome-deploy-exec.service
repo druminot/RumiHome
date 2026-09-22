@@ -1,0 +1,11 @@
+[Unit]
+Description=RumiHome deploy-bridge executor (procesa queue de promote/rollback)
+OnFailure=systemd-email@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/rumihome/infra/deploy-bridge/executor.py
+# Prod: DEPLOY_DIR por defecto (/var/lib/rumihome/deploy). Staging usa override.
+Environment=DEPLOY_DIR=/var/lib/rumihome/deploy
+Environment=RR_DIR=/opt/rumihome-rr
+Environment=PROD_DIR=/opt/rumihome

@@ -1,0 +1,9 @@
+[Unit]
+Description=RumiHome deploy-bridge: regenera history.json (git main + rr)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/rumihome/infra/deploy-bridge/history.py
+Environment=DEPLOY_DIR=/var/lib/rumihome/deploy
+Environment=MAIN_REPO=/opt/rumihome
+Environment=RR_REPO=/opt/rumihome-rr

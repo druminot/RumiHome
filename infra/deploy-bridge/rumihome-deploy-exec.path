@@ -1,0 +1,9 @@
+[Unit]
+Description=RumiHome deploy-bridge: dispara executor al aparecer peticiones en queue
+
+[Path]
+PathModified=/var/lib/rumihome/deploy/queue
+Unit=rumihome-deploy-exec.service
+
+[Install]
+WantedBy=multi-user.target
