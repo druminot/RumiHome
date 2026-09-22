@@ -121,6 +121,16 @@ RumiHome tiene un segundo entorno tipo profesional para desarrollar features con
 - **PM v2** (pm.md): clasificación SIMPLE/MEDIA/COMPLEJA con escalamiento de esfuerzo, delegación con 4 campos (objetivo/entregable/límites/éxito), sección SUPUESTOS en plan.md, protocolo de fallos, monitoreo con ground truth, anti-anchoring en bugs.
 - **Medición T3** (testimonios, sep 2026, grafo v2): **PM 126s** · total **1521s (~25min)** end-to-end — 2× más rápido que la medición pre-LangGraph (~49min), con progreso visible en Telegram y rollback limpio.
 
+### Panel /code (rumihome.io/code) — control de versiones y despliegues
+
+Página estilo GitHub: árbol de versiones (SVG, `app/src/pages/CodePanel.tsx`), MERGE→PROD y rollback desde la web. **La promoción ya NO va por el bot**: tras el deploy a staging, Daniel valida y hace MERGE en el panel.
+
+- **Rutas client**: `BASE_URL + /code` (staging `/rr/app/code`, prod `/code`); **API**: `VITE_API_PATH` (staging `/rr/api`, prod `/api`) — endpoints en `server/src/routes/deployments.ts`.
+- **Flujo de acciones**: POST solo **encola** en `/deploy-data/queue/` → executor host (`infra/deploy-bridge/`, systemd path unit) valida y corre `promote.sh`/`rollback.sh` → result en `results/`. El web/API jamás ejecutan git ni docker.
+- **Seguridad en capas**: requireAdmin (Firebase) → nonce un-uso 5 min (máx 3) → validación de shape → guards de promote.sh (branch, HALT, healthcheck, auto-rollback, backup DB).
+- **Datos**: `history.json` regenerado cada 1 min por `history.py` (git de ambos repos); staging monta `/var/lib/rumihome/deploy-dev` (executor `STAGING=1` dry-run), prod `/var/lib/rumihome/deploy` (real). Setup: `infra/deploy-bridge/SETUP.md`.
+- **QA del panel**: checklist completo en `.opencode/QA-CODE-PANEL.md` — obligatorio para features que toquen el panel, sus endpoints o el bridge.
+
 ## Automatización con n8n
 
 n8n corre en Docker en el VPS: `https://n8n.rumihome.io` (editor con auth propia de n8n, owner Daniel; webhooks `/webhook/*` públicos — cada workflow valida su propio token/secret). Infra versionada en `infra/n8n/` (docker-compose, nginx, backup.sh con export diario de workflows a `n8n/workflows/` → GitHub; runbook en `infra/n8n/SETUP.md`).
