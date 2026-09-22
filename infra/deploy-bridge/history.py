@@ -34,6 +34,19 @@ def git(repo: str, *args: str) -> str:
     return r.stdout if r.returncode == 0 else ""
 
 
+def git_fetch(repo: str) -> None:
+    """Fetch silencioso y tolerante a fallos (el timer corre cada minuto; sin red,
+    se usa lo último que haya en origin/*)."""
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    try:
+        subprocess.run(
+            ["git", "--git-dir", f"{repo}/.git", "--work-tree", repo, "fetch", "--quiet", "origin"],
+            capture_output=True, text=True, timeout=45, env=env,
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def git_show(repo: str, sha: str) -> str:
     r = subprocess.run(
         ["git", "--git-dir", f"{repo}/.git", "--work-tree", repo, "show", "--numstat", "--format=", sha],
@@ -68,11 +81,16 @@ def parse_commits(raw: str, repo: str) -> list:
 
 
 def main() -> None:
+    # Refrescar refs remotas para que prod/staging/branches reflejen GitHub real
+    # (staging puede estar en un rr-feature-* aún no mergeado a rr).
+    git_fetch(MAIN_REPO)
+    git_fetch(RR_REPO)
+
     data = {"generated_at": datetime.now(timezone.utc).isoformat(), "prod": {}, "tags": [], "staging": {}, "branches": []}
 
-    # --- prod ---
-    prod_sha = git(MAIN_REPO, "rev-parse", "HEAD").strip()
-    prod_tag = git(MAIN_REPO, "describe", "--tags", "--match", "prod-*", "--abbrev=0").strip()
+    # --- prod: main REMOTO (origin/main) — lo que promote.sh mergea ---
+    prod_sha = git(MAIN_REPO, "rev-parse", "origin/main").strip() or git(MAIN_REPO, "rev-parse", "HEAD").strip()
+    prod_tag = git(MAIN_REPO, "describe", "--tags", "--match", "prod-*", "--abbrev=0", "origin/main").strip()
     data["prod"] = {"sha": prod_sha[:7], "tag": prod_tag or None}
 
     # --- tags prod-* con commits entre tag-pre y tag ---
@@ -84,10 +102,14 @@ def main() -> None:
         commits = parse_commits(git(MAIN_REPO, "log", f"--format={FMT}", rng) or "", MAIN_REPO)
         data["tags"].append({"tag": tag, "date": tag[5:], "commits": commits[:MAX_COMMITS], "commit_count": len(commits)})
 
-    # --- staging (rr): adelantos respecto a main ---
+    # --- staging: HEAD real del espejo (rr o rr-feature-*) vs main de PROD ---
+    # El diff es contra origin/main (GitHub), no contra el main local del espejo
+    # que puede estar viejo — así el panel refleja exactamente lo que promote
+    # fusionaría y no lista commits ya promovidos.
     rr_branch = (git(RR_REPO, "rev-parse", "--abbrev-ref", "HEAD") or "rr").strip()
     rr_sha = git(RR_REPO, "rev-parse", "HEAD").strip()
-    ahead_raw = git(RR_REPO, "log", f"--format={FMT}", f"main..{rr_branch}")
+    prod_ref = "origin/main" if git(RR_REPO, "rev-parse", "-q", "--verify", "origin/main").strip() else "main"
+    ahead_raw = git(RR_REPO, "log", f"--format={FMT}", f"{prod_ref}..HEAD")
     ahead = parse_commits(ahead_raw, RR_REPO)
     data["staging"] = {"branch": rr_branch, "sha": rr_sha[:7], "ahead": ahead[:MAX_COMMITS], "ahead_count": len(ahead)}
 
