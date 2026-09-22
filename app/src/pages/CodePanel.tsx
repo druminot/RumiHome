@@ -20,9 +20,8 @@ interface HistoryData {
   branches: { name: string; sha: string; date: string; ahead_of_rr: number }[]
 }
 
-// API con la misma base del deploy: en staging /rr/api/*, en prod /api/*
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, '')
-const API_BASE = BASE === '' ? '/api' : `${BASE}/api`
+// API path por entorno (VITE_API_PATH en compose; default /api para prod/dev)
+const API_BASE = import.meta.env.VITE_API_PATH ?? '/api'
 
 const timeAgo = (iso: string) => {
   const d = (Date.now() - new Date(iso).getTime()) / 1000

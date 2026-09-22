@@ -26,6 +26,7 @@ services:
         VITE_FIREBASE_PROJECT_ID: rumihome-448217
         VITE_APP_ID: 1:315822949726:web:7e0d2556d560e170917bcf
         VITE_BASE_PATH: /rr/app/
+        VITE_API_PATH: /rr/api
     container_name: rumihome-app-rr
     restart: unless-stopped
     depends_on:
