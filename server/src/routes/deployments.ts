@@ -30,7 +30,9 @@ const HISTORY_FILE = path.join(DEPLOY_DIR, 'history.json')
 
 const NONCE_TTL_MS = 5 * 60 * 1000
 const MAX_NONCES = 3
-const TAG_RE = /^prod-\d{4}-\d{2}-\d{2}-\d{4}$/
+// Tags reales de prod: prod-YYYY-MM-DD-HHMM, prod-YYYY-MM-DD-base, prod-pre-*,
+// etc. Se acepta cualquier tag prod-* razonable; el executor + git validan de nuevo.
+const TAG_RE = /^prod-[a-z0-9][a-z0-9-]*$/
 
 interface Nonce {
   value: string

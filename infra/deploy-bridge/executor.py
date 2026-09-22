@@ -20,7 +20,7 @@ STAGING = os.environ.get("STAGING", "0") == "1"
 RR_DIR = os.environ.get("RR_DIR", "/opt/rumihome-rr")
 PROD_DIR = os.environ.get("PROD_DIR", "/opt/rumihome")
 LOCK = os.path.join(DEPLOY_DIR, ".executor.lock")
-TAG_RE = r"^prod-\d{4}-\d{2}-\d{2}-\d{4}$"
+TAG_RE = r"^prod-[a-z0-9][a-z0-9-]*$"  # tags reales: -HHMM, -base, -final, pre-*
 VALID_ACTIONS = {"promote", "rollback"}
 
 
