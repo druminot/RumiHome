@@ -41,6 +41,7 @@ _ui = {
     "feature": None,
     "thread_id": None,
     "runner": None,  # asyncio.Task del grafo en curso
+    "awaiting": None,  # None | "plan" | "pregunta" (qué interrupt está pausado)
 }
 
 _drainer_task: asyncio.Task | None = None  # type: ignore[name-defined]
@@ -110,19 +111,23 @@ async def cmd_estado(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     humano = {
         "idle": "esperando una feature",
         "planning": "🧠 PM pensando y refinando el plan…",
-        "awaiting_approval": "⏸ esperando tu APROBAR del plan",
+        "awaiting_approval": "⏸ esperando tu respuesta",
         "executing": "⚙️ ejecutando el plan aprobado…",
-        "done": "📦 terminado — APROBAR para promover o CAMBIOS para iterar",
+        "done": "📦 terminado — revisa el staging y valida en rumihome.io/code",
     }.get(_ui["state"], _ui["state"])
     msg = f"📌 Estado: {humano}\n📌 Feature: {_ui['feature'] or '—'}"
     if _ui["state"] == "awaiting_approval":
-        msg += "\n\nResponde APROBAR / CAMBIOS: <ajustes> / CANCELAR."
+        msg += "\n\n❓ Pregunta del PM pendiente: responde directo con tus respuestas." if _ui.get("awaiting") == "pregunta" else "\n\nResponde APROBAR / CAMBIOS: <ajustes> / CANCELAR."
     await update.message.reply_text(msg)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update) or not update.message or not update.message.text:
+        log.warning("update ignorado: autor=%s chat=%s tipo=%s",
+                    _authorized(update), update.effective_chat.id if update.effective_chat else None,
+                    type(update.message).name if update.message else "None")
         return
+    log.info("mensaje recibido: %r de chat %s", update.message.text[:60], update.message.chat_id)
     text = update.message.text.strip()
     upper = text.upper()
     chat_id = update.message.chat_id
@@ -189,7 +194,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("♻️ Staging reseteado al snapshot inicial." if rc == 0 else f"Error: {out[:800]}")
         return
 
-    if _ui["state"] in ("planning", "awaiting_approval", "executing"):
+    # Texto libre durante awaiting_approval:
+    #  · respuesta a una PREGUNTA del PM → se pasa tal cual al interrupt
+    #  · cualquier otra pausa → hint de los comandos válidos
+    if _ui["state"] == "awaiting_approval":
+        if _ui.get("awaiting") == "pregunta":
+            _ui["awaiting"] = None
+            await _resume(chat_id, context, text)  # respuesta libre → n_preguntar
+            return
+        await update.message.reply_text("⏸ Esperando tu decisión: APROBAR · CAMBIOS: <ajuste> · CANCELAR.")
+        return
+
+    if _ui["state"] in ("planning", "executing"):
         await update.message.reply_text(f"⏳ Estoy en '{_ui['state']}'. Responde al plan pendiente o CANCELAR.")
         return
 
@@ -229,7 +245,15 @@ async def _start_feature(chat_id: int, feature: str) -> None:
             # ainvoke (LangGraph 1.2): nodos async en el event loop → TimeoutPolicy
             # cancelable, GraphOutput con .interrupts separado y graceful shutdown.
             final = await graph.ainvoke(state_in, config, version="v2", control=control)
-            veredicto = final.value.get("veredicto", "") if hasattr(final, "value") else final.get("veredicto", "")
+            final_v = final.value if hasattr(final, "value") else final
+            interrupts = getattr(final, "interrupts", [])
+            veredicto = final_v.get("veredicto", "")
+            # Interrupt activo (esperar_aprobar o preguntar): quedamos esperando al humano
+            if interrupts and veredicto in ("", "PREGUNTA_PM"):
+                tipo = getattr(interrupts[0].value, "get", lambda k, d=None: None)("tipo") if hasattr(interrupts[0].value, "get") else getattr(interrupts[0].value, "tipo", None)
+                _ui["awaiting"] = "pregunta" if tipo == "pregunta_pm" else "plan"
+                _ui.update(state="awaiting_approval")
+                return
             if veredicto == "FALLO":
                 _ui.update(state="awaiting_approval")  # CAMBIOS para reintentar distinto
             elif veredicto == "CANCELADO":

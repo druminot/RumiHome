@@ -211,6 +211,28 @@ def _parse_tasks() -> list:
     return tasks
 
 
+def _read_preguntas() -> list:
+    """Extrae la sección ## PREGUNTAS de .rr/plan.md → [str]. El PM la escribe
+    cuando hay una decisión que solo Daniel puede tomar; el grafo la convierte
+    en pausa de primera clase (n_preguntar) en vez de disfrazarla de fallo."""
+    try:
+        content = (RR_DIR / ".rr" / "plan.md").read_text()
+    except OSError:
+        return []
+    preguntas, in_preg = [], False
+    for line in content.splitlines():
+        if line.strip().lower().startswith("## pre"):
+            in_preg = True
+            continue
+        if in_preg and line.strip().startswith("#"):
+            break
+        if not in_preg:
+            continue
+        if line.strip():
+            preguntas.append(line.strip().lstrip("-*0123456789. "))
+    return preguntas
+
+
 def _read_route() -> dict:
     """Lee la sección RUTEO de .rr/plan.md. QA siempre True (fallback defensivo)."""
     route = {"ux": True, "frontend": True, "backend": True, "qa": True}

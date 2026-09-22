@@ -35,6 +35,7 @@ from graph_flow_core import (
     _git_summary,
     _parse_tasks,
     _qa_veredicto,
+    _read_preguntas,
     _read_route,
     _reset_sessions,
     _run,
@@ -88,6 +89,12 @@ def n_pm_plan(state: dict) -> dict:
         return {"veredicto": "CONVERSACION", "tasks": [], "plan_texto": ""}
     tasks, route = _parse_tasks(), _read_route()
     if not tasks:
+        # El PM pudo dejar PREGUNTAS (decisión que solo Daniel toma): pausa
+        # de primera clase en vez de disfrazarla de "plan no parseable".
+        preguntas = _read_preguntas()
+        if preguntas:
+            _emit(chat_id, "❓ " + "\n".join(preguntas[:5])[:1200] + "\n\nResponde directo con tus respuestas · CANCELAR para abortar")
+            return {"veredicto": "PREGUNTA_PM", "tasks": [], "plan_texto": ""}
         rc2, out2 = _agent(
             "pm",
             "Tu plan no tiene la sección ## TAREAS parseable. Reescribe .rr/plan.md con "
@@ -107,6 +114,23 @@ def n_pm_plan(state: dict) -> dict:
         "APROBAR para empezar · CAMBIOS: <ajustes> · CANCELAR",
     )
     return {"route": route, "tasks": tasks, "total_steps": total, "plan_texto": lista}
+
+
+def n_preguntar(state: dict) -> dict:
+    """Pausa nativa del grafo: pregunta del PM esperando respuesta de Daniel.
+
+    El PM dejó PREGUNTAS en plan.md (dato que solo Daniel conoce). La respuesta
+    libre de Daniel se pasa al PM como feedback para re-planificar.
+    """
+    from langgraph.types import interrupt
+
+    respuesta = str(interrupt({"tipo": "pregunta_pm", "feature": state["feature"]}))
+    if respuesta.upper() == "CANCELAR":
+        return {"veredicto": "CANCELADO"}
+    return {
+        "feedback": f"Respuestas de Daniel a tus preguntas: {respuesta}",
+        "veredicto": "CAMBIOS",  # reusa el loop pm_cambios → re-planifica con las respuestas
+    }
 
 
 def n_esperar_aprobar(state: dict) -> dict:
@@ -293,6 +317,8 @@ def n_cancelado(state: dict) -> dict:
 def _ruta_desde_pm(state: dict) -> str:
     if state.get("veredicto") == "CONVERSACION":
         return "cancelado"  # fin limpio sin mensaje de cancelación redundante
+    if state.get("veredicto") == "PREGUNTA_PM":
+        return "preguntar"  # pausa nativa esperando respuesta de Daniel
     if state.get("veredicto") in ("HALT", "FALLO_PLAN"):
         return "fallo"
     return "esperar_aprobar"
@@ -364,6 +390,7 @@ async def build_graph():
     g = StateGraph(FlowState)
     g.add_node("pm_plan", n_pm_plan)
     g.add_node("esperar_aprobar", n_esperar_aprobar)
+    g.add_node("preguntar", n_preguntar)
     g.add_node("aprobar", n_aprobar)  # determinista: crea branch rr-feature-*
     g.add_node("pm_cambios", n_pm_cambios)
 
@@ -385,7 +412,8 @@ async def build_graph():
     g.add_node("cancelado", n_cancelado)
 
     g.add_edge(START, "pm_plan")
-    g.add_conditional_edges("pm_plan", _ruta_desde_pm, ["esperar_aprobar", "fallo"])
+    g.add_conditional_edges("pm_plan", _ruta_desde_pm, ["esperar_aprobar", "preguntar", "fallo"])
+    g.add_conditional_edges("preguntar", _ruta_post_aprobar, ["aprobar", "pm_cambios", "cancelado"])
     g.add_conditional_edges("esperar_aprobar", _ruta_post_aprobar, ["aprobar", "pm_cambios", "cancelado"])
     g.add_conditional_edges("aprobar", _siguiente, ["ux", "frontend", "backend", "qa", "fallo"])
     g.add_conditional_edges("ux", _siguiente, ["frontend", "backend", "qa", "fallo"])
