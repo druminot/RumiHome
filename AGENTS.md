@@ -130,6 +130,7 @@ Página estilo GitHub: árbol de versiones (SVG, `app/src/pages/CodePanel.tsx`),
 - **Seguridad en capas**: requireAdmin (Firebase) → nonce un-uso 5 min (máx 3) → validación de shape → guards de promote.sh (branch, HALT, healthcheck, auto-rollback, backup DB).
 - **Datos**: `history.json` regenerado cada 1 min por `history.py` (git de ambos repos); staging monta `/var/lib/rumihome/deploy-dev` (executor `STAGING=1` dry-run), prod `/var/lib/rumihome/deploy` (real). Setup: `infra/deploy-bridge/SETUP.md`.
 - **QA del panel**: checklist completo en `.opencode/QA-CODE-PANEL.md` — obligatorio para features que toquen el panel, sus endpoints o el bridge.
+- **DATO_PEDIDO**: cualquier agente ejecutor (ux/fe/be/qa) que necesite un dato que solo Daniel conoce (correo de notificación, preferencia, texto exacto) escribe `.rr/dato-pedido.md` con `## DATO_PEDIDO` y termina su turno; el grafo se pausa, el bot pregunta por Telegram y la respuesta se re-inyecta al mismo agente. Prohibido inventar datos o placeholders; secretos van al env del servidor (Daniel los agrega), jamás al repo.
 
 ## Automatización con n8n
 
