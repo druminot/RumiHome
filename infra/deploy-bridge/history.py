@@ -96,7 +96,7 @@ def main() -> None:
     for b in brs:
         name, sha, date = (b.split("\x01") + ["", ""])[:3]
         if name.startswith("rr-feature-"):
-            n_ahead = len((git(RR_REPO, "log", "--format=%H", f"rr..{name}", repo=RR_REPO) or "").split())
+            n_ahead = len((git(RR_REPO, "log", "--format=%H", f"rr..{name}") or "").split())
             data["branches"].append({"name": name, "sha": sha, "date": date, "ahead_of_rr": n_ahead})
     data["branches"] = data["branches"][:15]
 
