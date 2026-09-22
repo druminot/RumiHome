@@ -10,10 +10,10 @@ services:
       FIREBASE_PROJECT_ID: rumihome-448217
       DB_PATH: /data/rumihome.db
       DEPLOY_DATA_DIR: /deploy-data
-      # Email (Resend): definir en /root/agent.env del host:
+      # Email (Resend): definir en /root/email.env del host SOLO las vars de email:
       #   RESEND_API_KEY=re_xxx  EMAIL_FROM="Rumihome <reservas@rumihome.io>"
     env_file:
-      - /root/agent.env
+      - /root/email.env
     volumes:
       - rumihome_data:/data
       - /var/lib/rumihome/deploy:/deploy-data
