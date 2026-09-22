@@ -293,7 +293,16 @@ async def _resume(chat_id: int, decision: str) -> None:
             control = RunControl()
             _run_control = control
             final = await graph.ainvoke(Command(resume=decision), config, version="v2", control=control)
-            veredicto = final.value.get("veredicto", "") if hasattr(final, "value") else final.get("veredicto", "")
+            final_v = final.value if hasattr(final, "value") else final
+            interrupts = getattr(final, "interrupts", [])
+            veredicto = final_v.get("veredicto", "")
+            if interrupts and veredicto in ("", "PREGUNTA_PM"):
+                # Re-pausa encadenada (ej: el agente pide OTRO dato tras el primero)
+                val = interrupts[0].value
+                tipo = val.get("tipo") if hasattr(val, "get") else getattr(val, "tipo", None)
+                _ui["awaiting"] = {"pregunta_pm": "pregunta", "dato_pedido": "dato"}.get(tipo, "plan")
+                _ui.update(state="awaiting_approval")
+                return
             if veredicto in ("FALLO", "CANCELADO", "CONVERSACION"):
                 _ui.update(state="idle", feature=None, thread_id=None)
             else:

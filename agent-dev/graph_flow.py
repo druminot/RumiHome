@@ -35,6 +35,7 @@ from graph_flow_core import (
     _git_summary,
     _parse_tasks,
     _qa_veredicto,
+    _peek_dato_pedido,
     _read_dato_pedido,
     _read_preguntas,
     _read_route,
@@ -62,6 +63,11 @@ class FlowState(TypedDict):
     veredicto: str
     fallos: Annotated[list[str], operator.add]
     plan_texto: str
+    # DATO_PEDIDO: un agente ejecutor pidió un dato que solo Daniel conoce
+    dato_pendiente: bool          # el agente dejó .rr/dato-pedido.md sin resolver
+    dato_para: str | None         # agente que preguntó (ux/frontend/backend/qa)
+    dato_pregunta: str            # texto de la pregunta (para el interrupt)
+    respuesta_daniel: str | None  # respuesta libre de Daniel (resume del interrupt)
 
 
 # ------------------------------------------------------------------- nodos
@@ -215,12 +221,26 @@ def _paso(agente: str):
             _trace(feature, agente, out)
             return rc, out
 
+        # 2ª pasada tras recibir el dato de Daniel: UNA llamada con el dato
+        # inyectado (el marcador se consume aquí — no se re-lee).
+        respuesta_previa = state.get("respuesta_daniel") if state.get("dato_para") == agente else None
+        if respuesta_previa:
+            _emit(chat_id, f"✅ Dato recibido — {etiqueta} continúa…")
+            _read_dato_pedido()  # consume el marcador (evita que otro paso lo vea pendiente)
+            rc, out = await intento(
+                f"{instruccion_base}\n\nDATO QUE PEDISTE — RESPUESTA DE DANIEL (úsalo tal cual, NO lo inventes):\n{respuesta_previa}\n\n"
+                "Retoma la tarea pendiente donde la dejaste (revisa plan.md y tu trabajo previo en el branch)."
+            )
+            if rc != 0:
+                return {"fallos": [f"{agente} falló tras recibir el dato (rc={rc}): {out[-400:]}"]}
+            return {"hechos": [agente], "respuesta_daniel": None, "dato_para": None, "dato_pregunta": ""}
+
         rc, out = await intento(instruccion_base)
         if rc != 0:
             # Puede ser un DATO_PEDIDO disfrazado de salida no-cero: revisar antes de fallar.
-            dato = _read_dato_pedido()
+            dato = _peek_dato_pedido()
             if dato:
-                return await _pedir_dato(state, agente, instruccion_base, dato)
+                return {"dato_pendiente": True, "dato_para": agente, "dato_pregunta": dato}
             fallo = f"agente {agente} salió rc={rc}" + (" (timeout)" if rc == 124 else "")
             log.warning("Paso %s falló: %s", agente, fallo)
             _emit(chat_id, f"⚠️ {etiqueta.split(' ', 1)[0]} falló ({fallo}) — consultando al PM…")
@@ -252,44 +272,42 @@ def _paso(agente: str):
                     return {"fallos": [f"{fallo} ×2 — decisión PM: {diag_out[-600:]}"]}
             else:
                 return {"fallos": [f"{fallo} — decisión PM: ESCALAR. {diag_out[-600:]}"]}
-        # rc==0 pero el agente pudo dejar un DATO_PEDIDO (terminó su turno sin completar)
-        dato = _read_dato_pedido()
+        # rc==0 pero el agente pudo dejar un DATO_PEDIDO (terminó su turno sin completar).
+        # Patrón canónico LangGraph: NO pausar dentro del nodo costoso — marcar y
+        # dejar que el nodo ligero "pedir_dato" haga el interrupt (el nodo agente
+        # re-ejecuta idempotentemente al reanudar, con el dato en el estado).
+        dato = _peek_dato_pedido()
         if dato:
-            return await _pedir_dato(state, agente, instruccion_base, dato)
+            return {"dato_pendiente": True, "dato_para": agente, "dato_pregunta": dato}
         return {"hechos": [agente]}
 
     node.__name__ = f"n_{agente}"
     return node
 
 
-async def _pedir_dato(state: dict, agente: str, instruccion_base: str, pregunta: str) -> dict:
-    """El agente necesita un dato que solo Daniel tiene: pausa el grafo con
-    interrupt, emite la pregunta por Telegram y — al reanudar con la respuesta —
-    re-invoca al MISMO agente con el dato inyectado. Máx 1 pregunta por paso."""
+async def n_pedir_dato(state: dict) -> dict:
+    """Nodo LIGERO (sin efectos): solo hace interrupt para pedir el dato a Daniel.
+
+    Al reanudar, LangGraph re-ejecuta este nodo desde el inicio (barato) y
+    interrupt() devuelve la respuesta; se guarda en el estado para que el nodo
+    del agente (dato_para) re-invoco con el dato en su 2ª pasada."""
     from langgraph.types import interrupt
 
-    chat_id = state["chat_id"]
-    etiqueta = {"ux": "🎨 UX", "frontend": "⚙️ Frontend", "backend": "🗄 Backend", "qa": "🔍 QA"}[agente]
-    _emit(chat_id, f"❓ {etiqueta} necesita un dato tuyo:\n\n{pregunta}\n\nResponde directo con el dato · CANCELAR para abortar.")
-    respuesta = str(interrupt({"tipo": "dato_pedido", "agente": agente, "pregunta": pregunta[:400]}))
+    respuesta = str(interrupt({"tipo": "dato_pedido", "agente": state.get("dato_para"), "pregunta": (state.get("dato_pregunta") or "")[:400]}))
     if respuesta.upper() == "CANCELAR":
         return {"veredicto": "CANCELADO"}
-    # Re-invocación con el dato real (continúa la tarea pendiente, no la reinicia)
-    _emit(chat_id, f"✅ Dato recibido — {etiqueta} continúa…")
-    rc, out = await _agent_async(
-        agente,
-        f"{instruccion_base}\n\nDATO QUE PEDISTE — RESPUESTA DE DANIEL (úsalo tal cual, NO lo inventes):\n{respuesta[:800]}\n\n"
-        "Retoma la tarea pendiente donde la dejaste (revisa plan.md y tu trabajo previo en el branch).",
-        timeout=TIMEOUTS.get(agente, 720),
-    )
-    _trace(state["feature"], f"{agente}_dato", out)
-    if rc != 0:
-        return {"fallos": [f"{agente} falló tras recibir el dato (rc={rc}): {out[-400:]}"]}
-    # Tras recibir el dato puede pedir OTRO (máx 1 por vuelta — si insiste, escala)
-    otro = _read_dato_pedido()
-    if otro:
-        return {"fallos": [f"{agente} pidió otro dato tras recibir respuesta — escalando: {otro[:300]}"]}
-    return {"hechos": [agente]}
+    return {"respuesta_daniel": respuesta[:800], "dato_pendiente": False}
+
+
+def _ruta_post_dato(state: dict) -> str:
+    """Routing tras pedir_dato: RE-EJECUTA el nodo del agente que preguntó.
+
+    La 2ª pasada del nodo detecta respuesta_daniel en el estado, hace UNA llamada
+    con el dato inyectado y consume el marcador — luego su router normal decide."""
+    if state.get("veredicto") == "CANCELADO":
+        return "cancelado"
+    quien = state.get("dato_para")
+    return quien if quien in ("ux", "frontend", "backend", "qa") else "cancelado"
 
 
 def _paso_error_handler(agente: str):
@@ -380,6 +398,8 @@ def _siguiente(state: dict) -> str | list:
     """
     if state.get("fallos"):
         return "fallo"
+    if state.get("dato_pendiente"):
+        return "pedir_dato"
     from langgraph.types import Send
 
     route = state.get("route") or {}
@@ -403,7 +423,11 @@ def _siguiente(state: dict) -> str | list:
 
 def _post_paso_paralelo(state: dict) -> str:
     """FE y BE corren en la misma superstep; al fusionarse, ambas aristas ven esto."""
-    return "fallo" if state.get("fallos") else "qa"
+    if state.get("fallos"):
+        return "fallo"
+    if state.get("dato_pendiente"):
+        return "pedir_dato"
+    return "qa"
 
 
 def _ruta_qa(state: dict) -> str:
@@ -412,6 +436,13 @@ def _ruta_qa(state: dict) -> str:
     if state.get("iteracion", 0) < 3:
         return "pm_cambios"
     return "fallo"
+
+
+def _ruta_post_qa(state: dict) -> str:
+    """Tras QA: si QA mismo pidió un dato, pausar antes de decidir."""
+    if state.get("dato_pendiente") and state.get("dato_para") == "qa":
+        return "pedir_dato"
+    return "qa_decide"
 
 
 def _ruta_pm_cambios(state: dict) -> str:
@@ -454,11 +485,13 @@ async def build_graph():
     g.add_conditional_edges("pm_plan", _ruta_desde_pm, ["esperar_aprobar", "preguntar", "fallo"])
     g.add_conditional_edges("preguntar", _ruta_post_aprobar, ["aprobar", "pm_cambios", "cancelado"])
     g.add_conditional_edges("esperar_aprobar", _ruta_post_aprobar, ["aprobar", "pm_cambios", "cancelado"])
-    g.add_conditional_edges("aprobar", _siguiente, ["ux", "frontend", "backend", "qa", "fallo"])
-    g.add_conditional_edges("ux", _siguiente, ["frontend", "backend", "qa", "fallo"])
-    g.add_conditional_edges("frontend", _post_paso_paralelo, ["qa", "fallo"])
-    g.add_conditional_edges("backend", _post_paso_paralelo, ["qa", "fallo"])
-    g.add_edge("qa", "qa_decide")
+    g.add_conditional_edges("aprobar", _siguiente, ["ux", "frontend", "backend", "qa", "pedir_dato", "fallo"])
+    g.add_conditional_edges("ux", _siguiente, ["frontend", "backend", "qa", "pedir_dato", "fallo"])
+    g.add_conditional_edges("frontend", _post_paso_paralelo, ["qa", "pedir_dato", "fallo"])
+    g.add_conditional_edges("backend", _post_paso_paralelo, ["qa", "pedir_dato", "fallo"])
+    g.add_node("pedir_dato", n_pedir_dato)
+    g.add_conditional_edges("pedir_dato", _ruta_post_dato, ["ux", "frontend", "backend", "qa", "cancelado"])
+    g.add_conditional_edges("qa", _ruta_post_qa, ["qa_decide", "pedir_dato"])
     g.add_conditional_edges("qa_decide", _ruta_qa, ["deploy", "pm_cambios", "fallo"])
     g.add_edge("deploy", END)
     g.add_conditional_edges("pm_cambios", _ruta_pm_cambios, ["esperar_aprobar", "fallo"])

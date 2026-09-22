@@ -249,6 +249,21 @@ def _read_dato_pedido() -> str:
     return "\n".join(lineas)[:800]
 
 
+def _peek_dato_pedido() -> str:
+    """Igual que _read_dato_pedido pero SIN borrar el archivo (la detección en el
+    nodo agente no debe tener efectos; el marcador se consume cuando el agente
+    retoma con el dato — evita falsos positivos en re-ejecuciones del nodo)."""
+    p = RR_DIR / ".rr" / "dato-pedido.md"
+    try:
+        texto = p.read_text()
+    except OSError:
+        return ""
+    if "DATO_PEDIDO" not in texto:
+        return ""
+    lineas = [l.strip() for l in texto.splitlines() if l.strip() and not l.strip().startswith("#")]
+    return "\n".join(lineas)[:800]
+
+
 def _read_route() -> dict:
     """Lee la sección RUTEO de .rr/plan.md. QA siempre True (fallback defensivo)."""
     route = {"ux": True, "frontend": True, "backend": True, "qa": True}
