@@ -43,7 +43,8 @@ export default function CodePanelPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [openCommit, setOpenCommit] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
-  const [confirmAction, setConfirmAction] = useState<null | { kind: 'promote' | 'rollback'; tag?: string }>(null)
+  const [confirmAction, setConfirmAction] = useState<null | { kind: 'promote' | 'rollback' | 'reject'; tag?: string; branch?: string }>(null)
+  const [rejectBranch, setRejectBranch] = useState(false)
   const [restoreDb, setRestoreDb] = useState(false)
 
   const api = useCallback(async (pathUrl: string, opts: RequestInit = {}) => {
@@ -112,15 +113,16 @@ export default function CodePanelPage() {
     }
   }
 
-  async function runAction(kind: 'promote' | 'rollback', tag?: string) {
+  async function runAction(kind: 'promote' | 'rollback' | 'reject', tag?: string, branch?: string) {
     setConfirmAction(null)
-    setBusy(kind === 'promote' ? 'promote' : `rollback-${tag}`)
+    setBusy(kind === 'promote' ? 'promote' : kind === 'reject' ? 'reject' : `rollback-${tag}`)
     setResult(null)
     try {
       const n = await api(`${API_BASE}/deployments/nonce`)
       if (!n.ok) { setResult(`❌ ${n.data?.error ?? 'nonce falló'}`); return }
       const body: Record<string, string | boolean> = { nonce: n.data.nonce }
       if (kind === 'rollback' && tag) { body.tag = tag; body.restore_db = restoreDb }
+      if (kind === 'reject' && branch) body.branch = branch
       const r = await api(`${API_BASE}/deployments/${kind}`, { method: 'POST', body: JSON.stringify(body) })
       if (r.status !== 202) { setResult(`❌ ${r.data?.error ?? `HTTP ${r.status}`}`); return }
       // Polling del resultado (máx 30 min)
@@ -129,7 +131,8 @@ export default function CodePanelPage() {
         const st = await api(`${API_BASE}/deployments/status/${r.data.id}`)
         if (st.status === 200 && !st.data.pending) {
           const d = st.data
-          setResult(d.ok ? `✅ ${kind === 'promote' ? 'Promote' : 'Rollback'} OK${d.dry_run ? ' (staging dry-run)' : ''}\n${(d.output ?? d.detail ?? '').slice(-600)}` : `❌ FALLO (rc=${d.rc ?? '?'}):\n${(d.output ?? d.error ?? '').slice(-600)}`)
+          const nombre = kind === 'promote' ? 'Promote' : kind === 'reject' ? 'Rechazo' : 'Rollback'
+          setResult(d.ok ? `✅ ${nombre} OK${d.dry_run ? ' (staging dry-run)' : ''}\n${(d.output ?? d.detail ?? '').slice(-600)}` : `❌ FALLO (rc=${d.rc ?? '?'}):\n${(d.output ?? d.error ?? '').slice(-600)}`)
           return
         }
       }
@@ -189,12 +192,22 @@ export default function CodePanelPage() {
       {/* Cambios del agente pendientes */}
       {ahead.length > 0 && (
         <section style={{ border: '2px solid #B45309', borderRadius: 12, padding: 16, marginBottom: 20, background: '#FFFBEB' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <h2 style={{ margin: 0, fontSize: 16 }}>⏳ Cambios del agente pendientes ({ahead.length})</h2>
-            <button className="btn btn-primary" disabled={busy != null} onClick={() => setConfirmAction({ kind: 'promote' })}>
-              {busy === 'promote' ? 'Ejecutando…' : 'MERGE → PROD'}
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" style={{ borderColor: '#B91C1C', color: '#B91C1C' }} disabled={busy != null} onClick={() => { setRejectBranch(false); setConfirmAction({ kind: 'reject' }) }}>
+                {busy === 'reject' ? 'Rechazando…' : 'RECHAZAR'}
+              </button>
+              <button className="btn btn-primary" disabled={busy != null} onClick={() => setConfirmAction({ kind: 'promote' })}>
+                {busy === 'promote' ? 'Ejecutando…' : 'MERGE → PROD'}
+              </button>
+            </div>
           </div>
+          {history && history.staging.branch.startsWith('rr-feature-') && (
+            <p style={{ margin: '10px 0 0', fontSize: 13, color: '#92400E' }}>
+              Branch activo: <code>{history.staging.branch}</code>
+            </p>
+          )}
           <CommitList commits={ahead} openCommit={openCommit} setOpenCommit={setOpenCommit} />
         </section>
       )}
@@ -246,9 +259,21 @@ export default function CodePanelPage() {
       {confirmAction && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={() => setConfirmAction(null)}>
           <div style={{ background: 'white', borderRadius: 12, padding: 24, maxWidth: 480, width: '90%' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0 }}>{confirmAction.kind === 'promote' ? 'Pasar a PROD' : `Rollback a ${confirmAction.tag}`}</h3>
+            <h3 style={{ marginTop: 0 }}>
+              {confirmAction.kind === 'promote' ? 'Pasar a PROD' : confirmAction.kind === 'reject' ? 'Rechazar cambios del staging' : `Rollback a ${confirmAction.tag}`}
+            </h3>
             {confirmAction.kind === 'promote' ? (
               <p>Esto fusionará los {ahead.length} commit(s) pendientes a PROD con healthcheck y punto de rollback automático (~10 min).</p>
+            ) : confirmAction.kind === 'reject' ? (
+              <>
+                <p>Descarta los <strong>{ahead.length} commit(s) pendientes</strong> del staging: <code>rr</code> vuelve al estado de PROD y el staging se redespliega limpio. <strong>PROD no se toca.</strong></p>
+                <p style={{ fontSize: 13, color: '#666' }}>El estado rechazado se archiva como tag <code>rejected-&lt;fecha&gt;</code> (recuperable, no se pierde).</p>
+                {history && history.staging.branch.startsWith('rr-feature-') && (
+                  <label style={{ display: 'block', margin: '12px 0' }}>
+                    <input type="checkbox" checked={rejectBranch} onChange={(e) => setRejectBranch(e.target.checked)} /> Borrar también el branch <code>{history.staging.branch}</code>
+                  </label>
+                )}
+              </>
             ) : (
               <>
                 <p>Prod volverá al estado de <code>{confirmAction.tag}</code>.</p>
@@ -259,7 +284,12 @@ export default function CodePanelPage() {
             )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
               <button className="btn" onClick={() => setConfirmAction(null)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={() => { const a = confirmAction; setRestoreDb(false); runAction(a.kind, a.tag) }}>
+              <button className="btn btn-primary" onClick={() => {
+                const a = confirmAction
+                const branch = a.kind === 'reject' && rejectBranch && history ? history.staging.branch : undefined
+                setRestoreDb(false); setRejectBranch(false)
+                runAction(a.kind, a.tag, branch)
+              }}>
                 Confirmar
               </button>
             </div>

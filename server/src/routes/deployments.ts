@@ -33,6 +33,7 @@ const MAX_NONCES = 3
 // Tags reales de prod: prod-YYYY-MM-DD-HHMM, prod-YYYY-MM-DD-base, prod-pre-*,
 // etc. Se acepta cualquier tag prod-* razonable; el executor + git validan de nuevo.
 const TAG_RE = /^prod-[a-z0-9][a-z0-9-]*$/
+const BRANCH_RE = /^rr-feature-[a-z0-9-]+$/
 
 interface Nonce {
   value: string
@@ -87,7 +88,7 @@ function consumeNonce(nonce: string, email: string): string | null {
   return null
 }
 
-async function enqueue(req: Request, res: Response, action: 'promote' | 'rollback') {
+async function enqueue(req: Request, res: Response, action: 'promote' | 'rollback' | 'reject') {
   const email = (req as AdminRequest).adminEmail ?? 'dev-admin'
   const err = consumeNonce(String(req.body?.nonce ?? ''), email)
   if (err) return res.status(403).json({ error: err })
@@ -100,10 +101,17 @@ async function enqueue(req: Request, res: Response, action: 'promote' | 'rollbac
   if (action === 'rollback') {
     const tag = String(req.body?.tag ?? '').trim()
     if (tag && !TAG_RE.test(tag)) {
-      return res.status(400).json({ error: `tag inválido (formato prod-YYYY-MM-DD-HHMM): ${tag}` })
+      return res.status(400).json({ error: `tag inválido (formato prod-*): ${tag}` })
     }
     if (tag) body.tag = tag
     if (req.body?.restore_db) body.restore_db = true
+  }
+  if (action === 'reject') {
+    const branch = String(req.body?.branch ?? '').trim()
+    if (branch && !BRANCH_RE.test(branch)) {
+      return res.status(400).json({ error: `branch inválido (solo rr-feature-*): ${branch}` })
+    }
+    if (branch) body.branch = branch
   }
 
   const id = `deploy-${Date.now()}-${randomBytes(3).toString('hex')}`
@@ -124,6 +132,11 @@ deploymentsRouter.post('/deployments/promote', (req: Request, res: Response) =>
 /** POST /api/deployments/rollback {nonce, tag?, restore_db?} → encola rollback. */
 deploymentsRouter.post('/deployments/rollback', (req: Request, res: Response) => {
   void enqueue(req, res, 'rollback')
+})
+
+/** POST /api/deployments/reject {nonce, branch?} → encola rechazo de staging. */
+deploymentsRouter.post('/deployments/reject', (req: Request, res: Response) => {
+  void enqueue(req, res, 'reject')
 })
 
 /** GET /api/deployments/status/:id — resultado de una acción encolada. */

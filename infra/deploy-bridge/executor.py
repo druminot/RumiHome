@@ -21,7 +21,8 @@ RR_DIR = os.environ.get("RR_DIR", "/opt/rumihome-rr")
 PROD_DIR = os.environ.get("PROD_DIR", "/opt/rumihome")
 LOCK = os.path.join(DEPLOY_DIR, ".executor.lock")
 TAG_RE = r"^prod-[a-z0-9][a-z0-9-]*$"  # tags reales: -HHMM, -base, -final, pre-*
-VALID_ACTIONS = {"promote", "rollback"}
+BRANCH_RE = r"^rr-feature-[a-z0-9-]+$"
+VALID_ACTIONS = {"promote", "rollback", "reject"}
 
 
 def validate(req: dict) -> str | None:
@@ -31,6 +32,10 @@ def validate(req: dict) -> str | None:
         tag = req.get("tag", "")
         if tag and not __import__("re").match(TAG_RE, tag):
             return "tag inválido"
+    if req.get("action") == "reject":
+        branch = req.get("branch", "")
+        if branch and not __import__("re").match(BRANCH_RE, branch):
+            return "branch inválido (solo rr-feature-*)"
     if req.get("action") == "promote" and req.get("restore_db"):
         return "promote no acepta restore_db"
     return None
@@ -69,10 +74,18 @@ def main() -> None:
                 elif STAGING:
                     result = {"ok": True, "dry_run": True, "action": req["action"],
                               "tag": req.get("tag"), "restore_db": bool(req.get("restore_db")),
-                              "detail": f"staging dry-run: {req['action']} {'(tag ' + req['tag'] + ')' if req.get('tag') else ''}{' +restore_db' if req.get('restore_db') else ''}"}
+                              "branch": req.get("branch"),
+                              "detail": f"staging dry-run: {req['action']} {'(tag ' + req['tag'] + ')' if req.get('tag') else ''}{' +restore_db' if req.get('restore_db') else ''}{' (branch ' + req['branch'] + ')' if req.get('branch') else ''}"}
                 elif req["action"] == "promote":
                     rc, out = run_cmd(["bash", os.path.join(PROD_DIR, "scripts", "promote.sh")], 1800)
                     result = {"ok": rc == 0, "rc": rc, "output": out, "action": "promote"}
+                elif req["action"] == "reject":
+                    cmd = ["bash", os.path.join(PROD_DIR, "scripts", "reject.sh")]
+                    if req.get("branch"):
+                        cmd.append(req["branch"])
+                    rc, out = run_cmd(cmd, 900)
+                    result = {"ok": rc == 0, "rc": rc, "output": out, "action": "reject",
+                              "branch": req.get("branch")}
                 else:
                     cmd = ["bash", os.path.join(PROD_DIR, "scripts", "rollback.sh")]
                     if req.get("restore_db"):
