@@ -161,12 +161,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await _resume(chat_id, context, "APROBAR")
             return
         if _ui["state"] == "done":
-            await update.message.reply_text("🚀 Promoviendo a PROD…")
-            rc, out = _run(["bash", str(RR_DIR / "scripts" / "promote.sh")], timeout=1200)
+            # Promoción removida del bot (decisión Daniel 2026-09-21):
+            # el merge → prod se valida desde https://rumihome.io/code
             await update.message.reply_text(
-                ("✅ PROMOCIÓN COMPLETADA — en prod\n" if rc == 0 else "❌ PROMOTE FALLÓ:\n") + out[:1500]
+                "🚦 La promoción a PROD ahora se valida desde https://rumihome.io/code "
+                "(revisa el árbol de versiones y presiona MERGE → PROD)."
             )
-            _ui.update(state="idle", feature=None, thread_id=None)
             return
         await update.message.reply_text("No hay nada para APROBAR ahora (pide una feature primero).")
         return

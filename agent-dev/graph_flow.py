@@ -264,7 +264,7 @@ def n_deploy(state: dict) -> dict:
         chat_id,
         f"📦 RESUMEN — feature terminada (iteración {state.get('iteracion', 0) + 1})\n\n{resumen}\n\n"
         f"{_git_summary()}\n\n👀 Revisa: https://rumihome.io/rr/\n\n"
-        "• APROBAR → promueve a PROD (merge + healthcheck + rollback point)\n"
+        "• Valida y haz MERGE → PROD en https://rumihome.io/code (árbol de versiones)\n"
         "• CAMBIOS: <detalle> → itera en el mismo branch\n"
         "• 'rollback' → revierte esta feature del staging",
     )
