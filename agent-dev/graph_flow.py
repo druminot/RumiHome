@@ -81,6 +81,11 @@ def n_pm_plan(state: dict) -> dict:
     _trace(feature, "pm_plan", out)
     if HALT.exists():
         return {"veredicto": "HALT", "fallos": [f"HALT durante planificación:\n{HALT.read_text()[:800]}"]}
+    # NO_FEATURE: el PM determinó que el mensaje era conversación, no feature.
+    # Su respuesta tras el marcador ya fue emitida por la sesión; terminamos limpio.
+    if out.strip().startswith("NO_FEATURE"):
+        _emit(chat_id, out.strip()[len("NO_FEATURE"):].strip() or "👋 De acuerdo — cuando tengas una feature concreta, la describo y planifico.")
+        return {"veredicto": "CONVERSACION", "tasks": [], "plan_texto": ""}
     tasks, route = _parse_tasks(), _read_route()
     if not tasks:
         rc2, out2 = _agent(
@@ -277,7 +282,8 @@ def n_fallo(state: dict) -> dict:
 
 
 def n_cancelado(state: dict) -> dict:
-    _emit(state["chat_id"], "🚫 Cancelado. Espejo en su branch actual; pídeme una feature nueva cuando quieras.")
+    if state.get("veredicto") != "CONVERSACION":  # CONVERSACION ya emitió su respuesta
+        _emit(state["chat_id"], "🚫 Cancelado. Espejo en su branch actual; pídeme una feature nueva cuando quieras.")
     return {}
 
 
@@ -285,6 +291,8 @@ def n_cancelado(state: dict) -> dict:
 
 
 def _ruta_desde_pm(state: dict) -> str:
+    if state.get("veredicto") == "CONVERSACION":
+        return "cancelado"  # fin limpio sin mensaje de cancelación redundante
     if state.get("veredicto") in ("HALT", "FALLO_PLAN"):
         return "fallo"
     return "esperar_aprobar"

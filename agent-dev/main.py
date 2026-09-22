@@ -127,6 +127,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     upper = text.upper()
     chat_id = update.message.chat_id
 
+    # Gate de conversación: saludos y pruebas cortas se responden localmente,
+    # sin gastar una invocación del PM (antes llegaban al grafo y terminaban
+    # en "Plan no parseable" — el PM no tiene forma de decir "no hay feature").
+    SALUDOS = ("hola", "hey", "buenas", "qué tal", "que tal", "hi", "hello", "chao", "gracias")
+    if not any(k in upper for k in ("APROBAR", "CAMBIOS", "CANCELAR", "REANUDAR", "RESET")) and (
+        upper in [s.upper() for s in SALUDOS]
+        or (len(text) < 40 and any(upper.startswith(s.upper()) for s in SALUDOS))
+    ):
+        await update.message.reply_text(
+            "👋 Hola Daniel. Soy el PM-bot del equipo dev. Descríbeme una feature o bug a "
+            "desarrollar (ej: «agregar X a la landing», «endpoint Y», «bug Z») y planifico, "
+            "ejecuto y te traigo staging listo para revisar. ¿Qué hacemos hoy?"
+        )
+        return
+
     if upper.startswith("REANUDAR"):
         if HALT.exists():
             HALT.unlink()
@@ -248,7 +263,7 @@ async def _resume(chat_id: int, decision: str) -> None:
             _run_control = control
             final = await graph.ainvoke(Command(resume=decision), config, version="v2", control=control)
             veredicto = final.value.get("veredicto", "") if hasattr(final, "value") else final.get("veredicto", "")
-            if veredicto in ("FALLO", "CANCELADO"):
+            if veredicto in ("FALLO", "CANCELADO", "CONVERSACION"):
                 _ui.update(state="idle", feature=None, thread_id=None)
             else:
                 _ui.update(state="done")
