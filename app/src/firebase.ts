@@ -22,9 +22,9 @@ export function getAuthInstance(): Auth | null {
   return authInstance
 }
 
-export async function getIdToken(): Promise<string | null> {
+export async function getIdToken(forceRefresh = false): Promise<string | null> {
   if (!authInstance?.currentUser) return null
-  return authInstance.currentUser.getIdToken()
+  return authInstance.currentUser.getIdToken(forceRefresh)
 }
 
 export { signInWithEmailAndPassword, signOut }

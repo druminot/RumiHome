@@ -47,16 +47,41 @@ export default function CodePanelPage() {
   const [restoreDb, setRestoreDb] = useState(false)
 
   const api = useCallback(async (pathUrl: string, opts: RequestInit = {}) => {
-    const res = await fetch(pathUrl, {
+    let res = await fetch(pathUrl, {
       ...opts,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts.headers ?? {}) },
     })
+    if (res.status === 401) {
+      const fresh = await getIdToken(true).catch(() => null)
+      if (fresh) {
+        sessionStorage.setItem('admin_token', fresh)
+        setToken(fresh)
+        res = await fetch(pathUrl, {
+          ...opts,
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${fresh}`, ...(opts.headers ?? {}) },
+        })
+      }
+    }
     const data = await res.json().catch(() => ({}))
     return { ok: res.ok, status: res.status, data }
   }, [token])
 
   const loadHistory = useCallback(async () => {
-    const r = await api(`${API_BASE}/deployments/history`)
+    let r = await api(`${API_BASE}/deployments/history`)
+    if (r.status === 401) {
+      // Token expirado (1h): refrescar contra Firebase y reintentar.
+      // Si la sesión ya no existe → volver al login inline.
+      const fresh = await getIdToken(true).catch(() => null)
+      if (fresh) {
+        sessionStorage.setItem('admin_token', fresh)
+        setToken(fresh)
+        r = await api(`${API_BASE}/deployments/history`, { headers: { Authorization: `Bearer ${fresh}` } })
+      } else {
+        sessionStorage.removeItem('admin_token')
+        setToken(null)
+        return
+      }
+    }
     if (r.ok) { setHistory(r.data); setLoadErr(null) } else setLoadErr(r.data?.error ?? `HTTP ${r.status}`)
   }, [api])
 
